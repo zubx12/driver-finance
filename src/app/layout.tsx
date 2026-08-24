@@ -19,10 +19,34 @@ const ibmPlexMono = IBM_Plex_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Driver Finance Tracker",
-  description: "Revenue and Expense tracker for drivers",
+  title: "Driver Finance",
+  description: "Driver revenue and expense tracker — SAR",
   manifest: "/manifest.json",
-  themeColor: "#12181F",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "Driver Finance",
+    startupImage: "/apple-touch-icon.png",
+  },
+  icons: {
+    icon: [
+      { url: "/favicon-32x32.png", sizes: "32x32", type: "image/png" },
+      { url: "/icon-192x192.png", sizes: "192x192", type: "image/png" },
+      { url: "/icon-512x512.png", sizes: "512x512", type: "image/png" },
+    ],
+    apple: [
+      { url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" },
+    ],
+  },
+  other: {
+    "mobile-web-app-capable": "yes",
+    "apple-mobile-web-app-capable": "yes",
+    "apple-mobile-web-app-status-bar-style": "black-translucent",
+    "apple-mobile-web-app-title": "Driver Finance",
+    "theme-color": "#12181F",
+    "msapplication-TileColor": "#12181F",
+    "msapplication-TileImage": "/icon-144x144.png",
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
