@@ -86,6 +86,7 @@ export async function POST(request: NextRequest) {
         commission_percentage: driverPayType === 'commission' ? parseFloat(driverCommission) : null,
         fixed_salary_amount: driverPayType === 'fixed_salary' ? parseFloat(driverSalary) : null,
         bonus_rate: parseFloat(driverBonus ?? '0') || 0,
+        pay_frequency: 'monthly',
         effective_from: today,
       });
 
@@ -95,3 +96,4 @@ export async function POST(request: NextRequest) {
 
   return NextResponse.json({ success: true });
 }
+
