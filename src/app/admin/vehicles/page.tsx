@@ -165,31 +165,52 @@ export default function AdminVehiclesPage() {
                   </span>
                 </div>
               </CardHeader>
-                <CardContent className="p-4 pt-4 flex items-center justify-between bg-zinc-50 dark:bg-zinc-900/20 rounded-b-2xl">
-                  <div className="flex items-center gap-2">
-                    {v.vehicle_partners && v.vehicle_partners.length > 0 ? (
-                      <div className="flex -space-x-2">
-                        {v.vehicle_partners.map((vp: any, idx: number) => {
-                          const colors = ['bg-indigo-100 text-indigo-700', 'bg-rose-100 text-rose-700', 'bg-amber-100 text-amber-700'];
-                          const color = colors[idx % colors.length];
-                          const initial = vp.partners?.name ? vp.partners.name.substring(0, 2).toUpperCase() : 'P';
-                          return (
-                            <div key={vp.id} title={`${vp.partners?.name} (${vp.percentage}%)`} className={`h-8 w-8 rounded-full border-2 border-white dark:border-zinc-950 flex items-center justify-center text-[10px] font-bold ${color} dark:bg-opacity-20`}>
-                              {initial}
-                            </div>
-                          );
-                        })}
-                      </div>
+                <CardContent className="p-0 flex flex-col bg-zinc-50 dark:bg-zinc-900/20 rounded-b-2xl">
+                {/* DRIVER ROW */}
+                <div className="px-4 py-3 border-b border-zinc-100 dark:border-zinc-800 flex items-center justify-between">
+                  <div className="flex flex-col">
+                    <span className="text-[10px] uppercase font-bold text-zinc-400 tracking-wider mb-1">Assigned Driver</span>
+                    {v.drivers && v.drivers.length > 0 ? (
+                      <span className="text-sm font-medium text-zinc-900 dark:text-zinc-100 flex items-center gap-1.5">
+                        <User className="h-3.5 w-3.5 text-indigo-500" />
+                        {v.drivers[0].name}
+                      </span>
                     ) : (
-                      <span className="text-xs text-zinc-400 font-medium bg-white dark:bg-zinc-950 px-2 py-1 rounded-md border border-zinc-200 dark:border-zinc-800">Unassigned</span>
+                      <span className="text-xs text-zinc-400 font-medium bg-white dark:bg-zinc-950 px-2 py-1 rounded-md border border-zinc-200 dark:border-zinc-800 w-max">No Driver</span>
                     )}
                   </div>
-                <Link href={`/admin/vehicles/${v.id}/setup`}>
-                  <Button variant="outline" size="sm" className="h-8 rounded-lg text-xs">
-                    <Settings className="h-3.5 w-3.5 mr-1.5" />
-                    Manage Split
-                  </Button>
-                </Link>
+                </div>
+
+                {/* PARTNERS ROW */}
+                <div className="px-4 py-3 flex items-center justify-between">
+                  <div className="flex flex-col">
+                    <span className="text-[10px] uppercase font-bold text-zinc-400 tracking-wider mb-1">Partners Equity Split</span>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      {v.vehicle_partners && v.vehicle_partners.length > 0 ? (
+                        <div className="flex -space-x-2">
+                          {v.vehicle_partners.map((vp: any, idx: number) => {
+                            const colors = ['bg-indigo-100 text-indigo-700 border-indigo-200', 'bg-rose-100 text-rose-700 border-rose-200', 'bg-amber-100 text-amber-700 border-amber-200'];
+                            const color = colors[idx % colors.length];
+                            const initial = vp.partners?.name ? vp.partners.name.substring(0, 2).toUpperCase() : 'P';
+                            return (
+                              <div key={vp.id} title={`${vp.partners?.name} (${vp.percentage}%)`} className={`h-7 w-7 rounded-full border-2 border-white dark:border-zinc-950 flex items-center justify-center text-[10px] font-bold ${color} dark:bg-opacity-20`}>
+                                {initial}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <span className="text-xs text-zinc-400 font-medium bg-white dark:bg-zinc-950 px-2 py-1 rounded-md border border-zinc-200 dark:border-zinc-800 w-max">Not Setup</span>
+                      )}
+                    </div>
+                  </div>
+                  <Link href={`/admin/vehicles/${v.id}/setup`}>
+                    <Button variant="outline" size="sm" className="h-8 rounded-lg text-xs mt-4">
+                      <Settings className="h-3.5 w-3.5 mr-1.5" />
+                      Manage Setup
+                    </Button>
+                  </Link>
+                </div>
               </CardContent>
             </Card>
           ))}
