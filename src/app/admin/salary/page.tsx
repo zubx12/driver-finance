@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -132,14 +132,22 @@ export default function AdminSalaryPage() {
   };
 
   const handleFinalize = async (calcId: string) => {
-    if (!confirm('Finalize this payout? Once finalized it cannot be edited.')) return;
-    const supabase = createClient();
-    const { error: err } = await supabase
-      .from('salary_calculations')
-      .update({ status: 'finalized', finalized_at: new Date().toISOString() })
-      .eq('id', calcId);
-    if (err) { alert(err.message); return; }
-    setCalcs(prev => prev.map(c => c.id === calcId ? { ...c, status: 'finalized' } : c));
+    if (!confirm('Finalize this payout? Once finalized it cannot be edited, and official partner settlements will be generated.')) return;
+    
+    try {
+      const res = await fetch('/api/admin/finalize-salary', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ calcId })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to finalize');
+      
+      setCalcs(prev => prev.map(c => c.id === calcId ? { ...c, status: 'finalized' } : c));
+      alert('Success! Settlements have been generated for the partners.');
+    } catch (err: any) {
+      alert(err.message);
+    }
   };
 
   const fmt = (n: number) => n.toLocaleString('en-SA', { minimumFractionDigits: 2, maximumFractionDigits: 2 });

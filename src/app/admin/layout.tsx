@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, Users, Car, DollarSign, Menu, ClipboardList, FileText } from 'lucide-react';
+import { LayoutDashboard, Users, Car, DollarSign, Menu, ClipboardList, FileText, Wallet } from 'lucide-react';
 import { useState } from 'react';
 
 export default function AdminLayout({
@@ -19,6 +19,7 @@ export default function AdminLayout({
     { name: 'Drivers', href: '/admin/drivers', icon: Users },
     { name: 'Vehicles & Partners', href: '/admin/vehicles', icon: Car },
     { name: 'Salary Runs', href: '/admin/salary', icon: DollarSign },
+    { name: 'Settlements', href: '/admin/settlements', icon: Wallet },
     { name: 'Audit Log', href: '/admin/audit', icon: ClipboardList },
   ];
 
