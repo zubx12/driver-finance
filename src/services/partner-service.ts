@@ -53,9 +53,8 @@ export const partnerService = {
     return {
       id: dbPartner.id,
       name: dbPartner.name,
-      phone: dbPartner.phone,
       joinedDate: dbPartner.joined_date,
-      status: dbPartner.status
+      status: dbPartner.status as 'Active' | 'Inactive',
     };
   },
 
@@ -66,8 +65,8 @@ export const partnerService = {
       make: v.make,
       model: v.model,
       year: v.year,
-      plate: v.plate_number,
-      status: v.status
+      plateNumber: v.plate_number,           // PartnerVehicle expects plateNumber
+      status: v.status as 'Active' | 'Maintenance' | 'Inactive',
     }));
   },
 
@@ -75,14 +74,15 @@ export const partnerService = {
     const splits = await getVehiclePartners(vehicleId);
     const mySplit = splits.find(s => s.partner_id === partnerId);
     if (!mySplit) return null;
-    
+
     return {
       id: mySplit.id,
       vehicleId: mySplit.vehicle_id,
       partnerId: mySplit.partner_id,
       percentage: mySplit.percentage,
-      effectiveDate: mySplit.effective_from,
-      status: mySplit.effective_to ? 'Inactive' : 'Active'
+      effectiveFrom: mySplit.effective_from,   // OwnershipArrangement expects effectiveFrom
+      effectiveTo: mySplit.effective_to ?? null,
+      status: mySplit.effective_to ? 'Ended' : 'Active',  // 'Ended' not 'Inactive'
     };
   },
 
@@ -93,10 +93,12 @@ export const partnerService = {
       vehicleId: s.vehicle_id,
       partnerId: s.partner_id,
       percentage: s.percentage,
-      effectiveDate: s.effective_from,
-      status: s.effective_to ? 'Inactive' : 'Active'
+      effectiveFrom: s.effective_from,
+      effectiveTo: s.effective_to ?? null,
+      status: s.effective_to ? 'Ended' : 'Active' as 'Active' | 'Ended',
     }));
   },
+
 
   async getSettlements(partnerId: string): Promise<Settlement[]> {
     // We would need a dedicated query for partner settlements, but for now we'll fetch all 

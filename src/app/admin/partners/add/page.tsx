@@ -18,32 +18,53 @@ export default function AddPartnerPage() {
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [drivers, setDrivers] = useState<{ id: string; name: string; phone: string }[]>([]);
 
-  // Mock drivers database
-  const MOCK_DRIVERS = [
-    { id: 'DRV-1001', name: 'Ahmed Al-Farsi', phone: '0501112222' },
-    { id: 'DRV-1002', name: 'Omar Hassan', phone: '0503334444' },
-    { id: 'DRV-1003', name: 'Khalid Saqer', phone: '0505556666' }
-  ];
+  // Load real driver list on mount
+  useState(() => {
+    fetch('/api/admin/drivers-list')
+      .then(r => r.json())
+      .then(d => { if (Array.isArray(d)) setDrivers(d); })
+      .catch(() => {}); // silently fallback to empty
+  });
 
-  const filteredDrivers = MOCK_DRIVERS.filter(d => 
-    d.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+  const filteredDrivers = drivers.filter(d =>
+    d.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     d.phone.includes(searchQuery)
   );
 
-  const isValid = isDriver === false 
-    ? (name.trim().length > 0 && phone.trim().length > 0 && password.length > 0)
+  const isValid = isDriver === false
+    ? (name.trim().length > 0 && phone.trim().length > 0 && password.length >= 6)
     : (isDriver === true && selectedDriver !== null);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!isValid) return;
-    
+
     setIsSubmitting(true);
-    setTimeout(() => {
-      setIsSubmitting(false);
+    setError(null);
+
+    try {
+      const body = isDriver
+        ? { existingDriverId: selectedDriver!.id }
+        : { name: name.trim(), phone: phone.trim(), password };
+
+      const res = await fetch('/api/admin/create-partner', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to create partner');
+
       setIsSuccess(true);
-    }, 800);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleCopy = () => {

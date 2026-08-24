@@ -12,20 +12,34 @@ export default function AddDriverPage() {
   
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   // Validation
-  const isValid = name.trim().length > 0 && phone.trim().length > 0 && password.length > 0;
+  const isValid = name.trim().length > 0 && phone.trim().length > 0 && password.length >= 6;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!isValid) return;
-    
+
     setIsSubmitting(true);
-    // Simulate network request
-    setTimeout(() => {
-      setIsSubmitting(false);
+    setError(null);
+
+    try {
+      const res = await fetch('/api/admin/create-driver', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: name.trim(), phone: phone.trim(), password, status: status ? 'active' : 'inactive' }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to create driver');
+
       setIsSuccess(true);
-    }, 800);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleCopy = () => {
@@ -183,6 +197,13 @@ export default function AddDriverPage() {
                   You are creating an {status ? 'Active' : 'Inactive'} driver account for <strong className="text-ink">{name}</strong> ({phone}). A secure credentials card will be provided on the next screen.
                 </p>
               </div>
+            </div>
+          )}
+
+          {/* Error Banner */}
+          {error && (
+            <div className="mt-4 p-4 bg-red-50 border border-red-200 dark:bg-red-950/20 dark:border-red-800 rounded-lg text-sm text-red-700 dark:text-red-400">
+              <strong>Error:</strong> {error}
             </div>
           )}
         </div>

@@ -4,15 +4,19 @@ import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Drawer, DrawerClose, DrawerContent, DrawerDescription, DrawerFooter, DrawerHeader, DrawerTitle, DrawerTrigger } from '@/components/ui/drawer';
-import { Car, Plus, ArrowRight, Settings, UserPlus } from 'lucide-react';
+import { Car, Plus, Settings, UserPlus, Loader2 } from 'lucide-react';
 import Link from 'next/link';
-
-// Use same mock data for consistency
-import { MOCK_PARTNER_VEHICLES } from '@/data/mock-partner-data';
+import { getAdminVehicles } from '@/lib/data/vehicles';
 
 export default function AdminVehiclesPage() {
-  const [vehicles, setVehicles] = useState(MOCK_PARTNER_VEHICLES);
+  const [vehicles, setVehicles] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
+  useEffect(() => {
+    getAdminVehicles()
+      .then(setVehicles)
+      .finally(() => setLoading(false));
+  }, []);
   return (
     <div className="space-y-8 max-w-7xl mx-auto">
       <header className="flex items-center justify-between">
@@ -77,6 +81,17 @@ export default function AdminVehiclesPage() {
       </header>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        {loading && (
+          <div className="col-span-3 flex items-center justify-center py-16 text-zinc-400 gap-2">
+            <Loader2 className="h-5 w-5 animate-spin" />
+            Loading vehicles...
+          </div>
+        )}
+        {!loading && vehicles.length === 0 && (
+          <div className="col-span-3 text-center py-16 text-zinc-400 text-sm">
+            No vehicles yet. Add your first vehicle to get started.
+          </div>
+        )}
         {vehicles.map((v) => (
           <Card key={v.id} className="border-zinc-200 dark:border-zinc-800 rounded-2xl hover:border-indigo-300 dark:hover:border-indigo-700 transition-colors">
             <CardHeader className="pb-3 border-b border-zinc-100 dark:border-zinc-800">
@@ -87,15 +102,15 @@ export default function AdminVehiclesPage() {
                   </div>
                   <div>
                     <CardTitle className="text-base font-bold">{v.make} {v.model}</CardTitle>
-                    <CardDescription className="font-mono text-xs mt-0.5">{v.plateNumber}</CardDescription>
+                    <CardDescription className="font-mono text-xs mt-0.5">{v.plate_number}</CardDescription>
                   </div>
                 </div>
                 <span className={`text-[10px] font-bold px-2 py-1 rounded-md border ${
-                  v.status === 'Active' 
+                  v.status === 'active'
                     ? 'bg-emerald-50 text-emerald-700 border-emerald-100 dark:bg-emerald-900/30 dark:text-emerald-400 dark:border-emerald-800/50'
                     : 'bg-zinc-50 text-zinc-700 border-zinc-200 dark:bg-zinc-900/30 dark:text-zinc-400 dark:border-zinc-800/50'
                 }`}>
-                  {v.status}
+                  {v.status === 'active' ? 'Active' : 'Inactive'}
                 </span>
               </div>
             </CardHeader>
@@ -103,7 +118,6 @@ export default function AdminVehiclesPage() {
               <div className="flex -space-x-2">
                 <div className="h-8 w-8 rounded-full border-2 border-white dark:border-zinc-950 bg-indigo-100 dark:bg-indigo-900 flex items-center justify-center text-[10px] font-bold text-indigo-700 dark:text-indigo-300">P1</div>
                 <div className="h-8 w-8 rounded-full border-2 border-white dark:border-zinc-950 bg-rose-100 dark:bg-rose-900 flex items-center justify-center text-[10px] font-bold text-rose-700 dark:text-rose-300">P2</div>
-                <div className="h-8 w-8 rounded-full border-2 border-white dark:border-zinc-950 bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-[10px] font-bold text-zinc-700 dark:text-zinc-300">+1</div>
               </div>
               <Link href={`/admin/vehicles/${v.id}/setup`}>
                 <Button variant="outline" size="sm" className="h-8 rounded-lg text-xs">
