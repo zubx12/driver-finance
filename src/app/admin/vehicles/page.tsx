@@ -160,11 +160,25 @@ export default function AdminVehiclesPage() {
                 </span>
               </div>
             </CardHeader>
-            <CardContent className="p-4 pt-4 flex items-center justify-between bg-zinc-50 dark:bg-zinc-900/20 rounded-b-2xl">
-              <div className="flex -space-x-2">
-                <div className="h-8 w-8 rounded-full border-2 border-white dark:border-zinc-950 bg-indigo-100 dark:bg-indigo-900 flex items-center justify-center text-[10px] font-bold text-indigo-700 dark:text-indigo-300">P1</div>
-                <div className="h-8 w-8 rounded-full border-2 border-white dark:border-zinc-950 bg-rose-100 dark:bg-rose-900 flex items-center justify-center text-[10px] font-bold text-rose-700 dark:text-rose-300">P2</div>
-              </div>
+              <CardContent className="p-4 pt-4 flex items-center justify-between bg-zinc-50 dark:bg-zinc-900/20 rounded-b-2xl">
+                <div className="flex items-center gap-2">
+                  {v.vehicle_partners && v.vehicle_partners.length > 0 ? (
+                    <div className="flex -space-x-2">
+                      {v.vehicle_partners.map((vp: any, idx: number) => {
+                        const colors = ['bg-indigo-100 text-indigo-700', 'bg-rose-100 text-rose-700', 'bg-amber-100 text-amber-700'];
+                        const color = colors[idx % colors.length];
+                        const initial = vp.partners?.name ? vp.partners.name.substring(0, 2).toUpperCase() : 'P';
+                        return (
+                          <div key={vp.id} title={`${vp.partners?.name} (${vp.percentage}%)`} className={`h-8 w-8 rounded-full border-2 border-white dark:border-zinc-950 flex items-center justify-center text-[10px] font-bold ${color} dark:bg-opacity-20`}>
+                            {initial}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <span className="text-xs text-zinc-400 font-medium bg-white dark:bg-zinc-950 px-2 py-1 rounded-md border border-zinc-200 dark:border-zinc-800">Unassigned</span>
+                  )}
+                </div>
               <Link href={`/admin/vehicles/${v.id}/setup`}>
                 <Button variant="outline" size="sm" className="h-8 rounded-lg text-xs">
                   <Settings className="h-3.5 w-3.5 mr-1.5" />
