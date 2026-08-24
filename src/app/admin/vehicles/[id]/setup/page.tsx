@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { ChevronLeft, UserPlus, Car, CheckCircle2, History, AlertCircle, Percent } from 'lucide-react';
+import { ChevronLeft, UserPlus, Car, CheckCircle2, History, AlertCircle, Percent, Info } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 
 export default function VehicleSetupPage() {
@@ -241,6 +241,21 @@ export default function VehicleSetupPage() {
           </div>
           
           <div className="p-6 space-y-4">
+            {/* EXPLANATORY FINANCIAL LOGIC BANNER */}
+            <div className="p-4 bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-100 dark:border-indigo-800/50 rounded-lg flex gap-3 text-indigo-900 dark:text-indigo-200">
+              <div className="mt-0.5 shrink-0">
+                <Info className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
+              </div>
+              <div className="text-sm">
+                <p className="font-semibold mb-1">How the math works:</p>
+                {driverPayType === 'commission' ? (
+                  <p>The driver takes <strong>{driverCommission || '0'}%</strong> off the top as an expense. The remaining <strong>{Math.max(0, 100 - (parseFloat(driverCommission) || 0))}%</strong> is the Net Profit. Distribute 100% of this Net Profit among the partners below.</p>
+                ) : (
+                  <p>The driver is paid a fixed salary of <strong>{driverSalary || '0'} SAR</strong> as an expense. Distribute 100% of the remaining Net Profit among the partners below.</p>
+                )}
+              </div>
+            </div>
+
             {error && (
                 <div className="p-3 bg-red-50 text-red-700 border border-red-200 rounded-lg text-sm font-medium">
                     {error}
