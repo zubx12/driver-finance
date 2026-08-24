@@ -21,7 +21,7 @@ const ibmPlexMono = IBM_Plex_Mono({
 export const metadata: Metadata = {
   title: "Driver Finance",
   description: "Driver revenue and expense tracker — SAR",
-  manifest: "/manifest.json",
+  manifest: "/manifest.webmanifest?v=2",
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
