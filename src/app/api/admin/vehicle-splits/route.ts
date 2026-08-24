@@ -19,21 +19,28 @@ export async function POST(request: NextRequest) {
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   );
 
-  // Close existing active splits for this vehicle
-  const now = new Date().toISOString();
+  const today = new Date().toISOString().split('T')[0];
+
+  // 1. Delete any vehicle_partners rows for this vehicle created EXACTLY today (prevents same-day duplicate key errors)
   await admin.from('vehicle_partners')
-    .update({ effective_to: now })
+    .delete()
+    .eq('vehicle_id', vehicleId)
+    .eq('effective_from', today);
+
+  // 2. Close existing active splits for this vehicle
+  await admin.from('vehicle_partners')
+    .update({ effective_to: today })
     .eq('vehicle_id', vehicleId)
     .is('effective_to', null);
 
-  // Insert new splits
+  // 3. Insert new splits
   const rows = splits
     .filter((s: any) => s.partnerId && parseFloat(s.percentage) > 0)
     .map((s: any) => ({
       vehicle_id: vehicleId,
       partner_id: s.partnerId,
       percentage: parseFloat(s.percentage),
-      effective_from: now,
+      effective_from: today,
       effective_to: null,
     }));
 
@@ -44,7 +51,7 @@ export async function POST(request: NextRequest) {
 
   // Setup driver compensation
   if (driverPayType) {
-    // 1. Find the currently assigned driver
+    // Find the currently assigned driver
     const { data: driverData, error: driverErr } = await admin
       .from('drivers')
       .select('id')
@@ -57,14 +64,21 @@ export async function POST(request: NextRequest) {
     }
 
     if (driverData) {
-      // 2. Close existing active compensation for this driver/vehicle
+      // Delete any compensation records created TODAY
       await admin.from('driver_compensation')
-        .update({ effective_to: now })
+        .delete()
+        .eq('vehicle_id', vehicleId)
+        .eq('driver_id', driverData.id)
+        .eq('effective_from', today);
+
+      // Close existing active compensation for this driver/vehicle
+      await admin.from('driver_compensation')
+        .update({ effective_to: today })
         .eq('vehicle_id', vehicleId)
         .eq('driver_id', driverData.id)
         .is('effective_to', null);
 
-      // 3. Insert new compensation record using correct column schema
+      // Insert new compensation record using correct column schema
       const { error: compErr } = await admin.from('driver_compensation').insert({
         driver_id: driverData.id,
         vehicle_id: vehicleId,
@@ -72,7 +86,7 @@ export async function POST(request: NextRequest) {
         commission_percentage: driverPayType === 'commission' ? parseFloat(driverCommission) : null,
         fixed_salary_amount: driverPayType === 'fixed_salary' ? parseFloat(driverSalary) : null,
         bonus_rate: parseFloat(driverBonus ?? '0') || 0,
-        effective_from: now,
+        effective_from: today,
       });
 
       if (compErr) return NextResponse.json({ message: compErr.message }, { status: 500 });
