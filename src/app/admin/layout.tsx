@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, Users, Car, DollarSign, Menu, ClipboardList, FileText, Wallet, LogOut } from 'lucide-react';
+import { LayoutDashboard, Users, Car, DollarSign, Menu, ClipboardList, FileText, Wallet, LogOut, Briefcase } from 'lucide-react';
 import { useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 
@@ -23,7 +23,8 @@ export default function AdminLayout({
     { name: 'Overview', href: '/admin', icon: LayoutDashboard },
     { name: 'Daily Reports', href: '/admin/transactions', icon: FileText },
     { name: 'Drivers', href: '/admin/drivers', icon: Users },
-    { name: 'Vehicles & Partners', href: '/admin/vehicles', icon: Car },
+    { name: 'Partners', href: '/admin/partners', icon: Briefcase },
+    { name: 'Vehicles', href: '/admin/vehicles', icon: Car },
     { name: 'Salary Runs', href: '/admin/salary', icon: DollarSign },
     { name: 'Settlements', href: '/admin/settlements', icon: Wallet },
     { name: 'Audit Log', href: '/admin/audit', icon: ClipboardList },

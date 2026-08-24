@@ -217,59 +217,7 @@ export default function AdminVehiclesPage() {
         </div>
       </section>
 
-      {/* PARTNERS DIRECTORY */}
-      <section className="space-y-6 border-t border-zinc-200 dark:border-zinc-800 pt-12">
-        <div>
-          <h2 className="text-2xl font-bold tracking-tight">Partners Directory</h2>
-          <p className="text-zinc-500 dark:text-zinc-400 text-sm mt-1">
-            All registered partners available for equity splits.
-          </p>
-        </div>
-        
-        <div className="bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-2xl overflow-hidden shadow-sm">
-          <table className="w-full text-sm text-left">
-            <thead className="bg-zinc-50 dark:bg-zinc-900/50 text-zinc-500 font-medium border-b border-zinc-200 dark:border-zinc-800">
-              <tr>
-                <th className="px-6 py-4">Partner Name</th>
-                <th className="px-6 py-4">Username</th>
-                <th className="px-6 py-4">Status</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
-              {loading ? (
-                <tr>
-                  <td colSpan={3} className="px-6 py-8 text-center text-zinc-400">Loading partners...</td>
-                </tr>
-              ) : partners.length === 0 ? (
-                <tr>
-                  <td colSpan={3} className="px-6 py-8 text-center text-zinc-400">No partners found. Create one to get started.</td>
-                </tr>
-              ) : (
-                partners.map((p) => (
-                  <tr key={p.id} className="hover:bg-zinc-50/50 dark:hover:bg-zinc-900/20 transition-colors">
-                    <td className="px-6 py-4 font-medium flex items-center gap-3">
-                      <div className="h-8 w-8 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-xs font-bold text-zinc-600 dark:text-zinc-400">
-                        <User className="h-4 w-4" />
-                      </div>
-                      {p.name}
-                    </td>
-                    <td className="px-6 py-4 font-mono text-xs text-zinc-500">@{p.username}</td>
-                    <td className="px-6 py-4">
-                      <span className={`text-[10px] font-bold px-2 py-1 rounded-md border ${
-                        p.status?.toLowerCase() === 'active'
-                          ? 'bg-emerald-50 text-emerald-700 border-emerald-100 dark:bg-emerald-900/30 dark:text-emerald-400 dark:border-emerald-800/50'
-                          : 'bg-zinc-50 text-zinc-700 border-zinc-200 dark:bg-zinc-900/30 dark:text-zinc-400 dark:border-zinc-800/50'
-                      }`}>
-                        {p.status?.toLowerCase() === 'active' ? 'Active' : 'Inactive'}
-                      </span>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </section>
     </div>
   );
 }
+
