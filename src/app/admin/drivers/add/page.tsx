@@ -7,14 +7,15 @@ import { ChevronLeft, Key, User, AtSign, CheckCircle, Copy } from 'lucide-react'
 export default function AddDriverPage() {
   const [name, setName] = useState('');
   const [username, setUsername] = useState('');
-  const [password, setPassword] = useState(Math.random().toString(36).slice(-8));
-  const [status, setStatus] = useState(true); // true = active
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [status, setStatus] = useState(true);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Validation — username: at least 3 chars, alphanumeric + underscore only
+  // Validation — username min 3 chars; password min 6
   const cleanUsername = username.trim().toLowerCase().replace(/\s+/g, '_');
   const isValid = name.trim().length > 0 && cleanUsername.length >= 3 && password.length >= 6;
 
@@ -88,7 +89,7 @@ export default function AddDriverPage() {
             </Link>
             <button
               onClick={() => {
-                setName(''); setUsername(''); setPassword(Math.random().toString(36).slice(-8)); setIsSuccess(false);
+                setName(''); setUsername(''); setPassword(''); setShowPassword(false); setIsSuccess(false);
               }}
               className="flex-1 h-11 bg-ink hover:bg-ink-soft text-paper-raised font-medium rounded-lg transition-colors"
             >
@@ -169,23 +170,40 @@ export default function AddDriverPage() {
                 </button>
               </div>
             </div>
-            
+
             <div className="space-y-2 max-w-sm">
               <label className="text-sm font-medium text-ink flex items-center justify-between">
-                Temporary Password
-                <button type="button" onClick={() => setPassword(Math.random().toString(36).slice(-8))} className="text-xs text-ink-soft hover:text-ink underline">Generate New</button>
+                Password
+                <button
+                  type="button"
+                  onClick={() => setPassword(Math.random().toString(36).slice(-10))}
+                  className="text-xs text-ink-soft hover:text-ink underline"
+                >
+                  Auto-generate
+                </button>
               </label>
               <div className="relative">
                 <Key className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-ink-soft" />
-                <input 
-                  type="text" 
+                <input
+                  type={showPassword ? 'text' : 'password'}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
-                  className="w-full h-11 pl-10 pr-4 bg-paper border border-line rounded-lg text-ink font-mono font-medium focus:outline-none focus:ring-2 focus:ring-ink/20"
+                  minLength={6}
+                  placeholder="Set a password (min. 6 characters)"
+                  className="w-full h-11 pl-10 pr-12 bg-paper border border-line rounded-lg text-ink font-mono focus:outline-none focus:ring-2 focus:ring-ink/20"
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-ink-soft hover:text-ink font-medium"
+                >
+                  {showPassword ? 'Hide' : 'Show'}
+                </button>
               </div>
-              <p className="text-xs text-ink-soft">The driver will use this to log in initially.</p>
+              <p className="text-xs text-ink-soft">
+                You set this password — share it with the driver so they can log in.
+              </p>
             </div>
           </div>
           
