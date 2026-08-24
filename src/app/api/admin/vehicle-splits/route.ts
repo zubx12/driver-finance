@@ -42,17 +42,41 @@ export async function POST(request: NextRequest) {
     if (error) return NextResponse.json({ message: error.message }, { status: 500 });
   }
 
-  // Upsert driver compensation
+  // Setup driver compensation
   if (driverPayType) {
-    const { error } = await admin.from('driver_compensation').upsert({
-      vehicle_id: vehicleId,
-      pay_type: driverPayType,
-      commission_rate: driverPayType === 'commission' ? parseFloat(driverCommission) : null,
-      fixed_salary: driverPayType === 'fixed_salary' ? parseFloat(driverSalary) : null,
-      bonus_rate: parseFloat(driverBonus ?? '0') || 0,
-      effective_from: now,
-    }, { onConflict: 'vehicle_id' });
-    if (error) return NextResponse.json({ message: error.message }, { status: 500 });
+    // 1. Find the currently assigned driver
+    const { data: driverData, error: driverErr } = await admin
+      .from('drivers')
+      .select('id')
+      .eq('vehicle_id', vehicleId)
+      .eq('status', 'Active')
+      .single();
+
+    if (driverErr && driverErr.code !== 'PGRST116') {
+      return NextResponse.json({ message: driverErr.message }, { status: 500 });
+    }
+
+    if (driverData) {
+      // 2. Close existing active compensation for this driver/vehicle
+      await admin.from('driver_compensation')
+        .update({ effective_to: now })
+        .eq('vehicle_id', vehicleId)
+        .eq('driver_id', driverData.id)
+        .is('effective_to', null);
+
+      // 3. Insert new compensation record using correct column schema
+      const { error: compErr } = await admin.from('driver_compensation').insert({
+        driver_id: driverData.id,
+        vehicle_id: vehicleId,
+        compensation_type: driverPayType,
+        commission_percentage: driverPayType === 'commission' ? parseFloat(driverCommission) : null,
+        fixed_salary_amount: driverPayType === 'fixed_salary' ? parseFloat(driverSalary) : null,
+        bonus_rate: parseFloat(driverBonus ?? '0') || 0,
+        effective_from: now,
+      });
+
+      if (compErr) return NextResponse.json({ message: compErr.message }, { status: 500 });
+    }
   }
 
   return NextResponse.json({ success: true });
