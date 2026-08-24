@@ -2,20 +2,21 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { ChevronLeft, Key, User, Phone, CheckCircle, Copy } from 'lucide-react';
+import { ChevronLeft, Key, User, AtSign, CheckCircle, Copy } from 'lucide-react';
 
 export default function AddDriverPage() {
   const [name, setName] = useState('');
-  const [phone, setPhone] = useState('');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState(Math.random().toString(36).slice(-8));
   const [status, setStatus] = useState(true); // true = active
-  
+
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Validation
-  const isValid = name.trim().length > 0 && phone.trim().length > 0 && password.length >= 6;
+  // Validation — username: at least 3 chars, alphanumeric + underscore only
+  const cleanUsername = username.trim().toLowerCase().replace(/\s+/g, '_');
+  const isValid = name.trim().length > 0 && cleanUsername.length >= 3 && password.length >= 6;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -28,11 +29,11 @@ export default function AddDriverPage() {
       const res = await fetch('/api/admin/create-driver', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: name.trim(), phone: phone.trim(), password, status: status ? 'active' : 'inactive' }),
+        body: JSON.stringify({ name: name.trim(), username: cleanUsername, password, status: status ? 'Active' : 'Inactive' }),
       });
 
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to create driver');
+      if (!res.ok) throw new Error(data.message || 'Failed to create driver');
 
       setIsSuccess(true);
     } catch (err: any) {
@@ -43,7 +44,7 @@ export default function AddDriverPage() {
   };
 
   const handleCopy = () => {
-    navigator.clipboard.writeText(`Login: ${phone}\nPassword: ${password}`);
+    navigator.clipboard.writeText(`Username: ${cleanUsername}\nPassword: ${password}`);
     alert('Credentials copied to clipboard!');
   };
 
@@ -58,9 +59,9 @@ export default function AddDriverPage() {
           <p className="text-ink-soft mb-8">
             The account for {name} is active. Share these exact credentials with them so they can log in to the Driver App.
           </p>
-          
+
           <div className="bg-paper border border-line rounded-lg p-6 text-left relative group">
-            <button 
+            <button
               onClick={handleCopy}
               className="absolute top-4 right-4 p-2 text-ink-soft hover:text-ink hover:bg-line/50 rounded-md transition-colors"
               title="Copy credentials"
@@ -69,8 +70,8 @@ export default function AddDriverPage() {
             </button>
             <div className="space-y-4 font-mono text-sm">
               <div>
-                <span className="text-ink-soft text-xs uppercase tracking-wider block mb-1">Login (Phone Number)</span>
-                <span className="text-ink font-semibold text-lg">{phone}</span>
+                <span className="text-ink-soft text-xs uppercase tracking-wider block mb-1">Username</span>
+                <span className="text-ink font-semibold text-lg">{cleanUsername}</span>
               </div>
               <div>
                 <span className="text-ink-soft text-xs uppercase tracking-wider block mb-1">Temporary Password</span>
@@ -78,16 +79,16 @@ export default function AddDriverPage() {
               </div>
             </div>
           </div>
-          
+
           <div className="mt-8 pt-6 border-t border-line flex gap-4">
             <Link href="/admin/drivers" className="flex-1">
               <button className="w-full h-11 bg-paper hover:bg-line/50 text-ink font-medium rounded-lg border border-line transition-colors">
                 Back to Drivers
               </button>
             </Link>
-            <button 
+            <button
               onClick={() => {
-                setName(''); setPhone(''); setPassword(Math.random().toString(36).slice(-8)); setIsSuccess(false);
+                setName(''); setUsername(''); setPassword(Math.random().toString(36).slice(-8)); setIsSuccess(false);
               }}
               className="flex-1 h-11 bg-ink hover:bg-ink-soft text-paper-raised font-medium rounded-lg transition-colors"
             >
@@ -135,16 +136,17 @@ export default function AddDriverPage() {
               </div>
               
               <div className="space-y-2">
-                <label className="text-sm font-medium text-ink">Phone Number (Login ID)</label>
+                <label className="text-sm font-medium text-ink">Username (Login ID)</label>
                 <div className="relative">
-                  <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-ink-soft" />
-                  <input 
-                    type="tel" 
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
+                  <AtSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-ink-soft" />
+                  <input
+                    type="text"
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
                     required
                     className="w-full h-11 pl-10 pr-4 bg-paper border border-line rounded-lg text-ink font-mono focus:outline-none focus:ring-2 focus:ring-ink/20"
-                    placeholder="e.g. 0501234567"
+                    placeholder="e.g. ahmed_driver"
+                    autoComplete="username"
                   />
                 </div>
               </div>
@@ -194,7 +196,7 @@ export default function AddDriverPage() {
               <div>
                 <p className="text-sm font-medium text-ink">Ready to create account</p>
                 <p className="text-xs text-ink-soft mt-1">
-                  You are creating an {status ? 'Active' : 'Inactive'} driver account for <strong className="text-ink">{name}</strong> ({phone}). A secure credentials card will be provided on the next screen.
+                  You are creating an {status ? 'Active' : 'Inactive'} driver account for <strong className="text-ink">{name}</strong> (@{cleanUsername}). A secure credentials card will be provided on the next screen.
                 </p>
               </div>
             </div>

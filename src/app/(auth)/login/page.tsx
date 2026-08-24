@@ -2,10 +2,12 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Shield, Briefcase, Car, Phone, Mail, Key, ArrowRight, AlertCircle } from 'lucide-react';
+import { Shield, Briefcase, Car, User, Mail, Key, ArrowRight, AlertCircle } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 
 type Role = 'admin' | 'partner' | 'driver';
+
+const DOMAIN = 'driverfinance.internal';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -26,30 +28,29 @@ export default function LoginPage() {
       let result;
 
       if (activeRole === 'admin') {
-        // Admin logs in with email + password
+        // Admin logs in with their real email
         result = await supabase.auth.signInWithPassword({
           email: identifier,
           password,
         });
       } else {
-        // Drivers and partners log in with phone + password
-        // Phone must be in E.164 format e.g. +966501234567
-        const phone = identifier.startsWith('+') ? identifier : `+966${identifier.replace(/^0/, '')}`;
-        result = await supabase.auth.signInWithPassword({
-          phone,
-          password,
-        });
+        // Drivers and partners log in with username + password.
+        // We convert the username to a synthetic email — they never see this.
+        const cleanUsername = identifier.trim().toLowerCase().replace(/\s+/g, '_');
+        const email = `${cleanUsername}@${DOMAIN}`;
+        result = await supabase.auth.signInWithPassword({ email, password });
       }
 
       if (result.error) {
-        setError(result.error.message === 'Invalid login credentials'
-          ? 'Incorrect credentials. Please check and try again.'
-          : result.error.message
+        setError(
+          result.error.message === 'Invalid login credentials'
+            ? 'Incorrect username or password. Please check and try again.'
+            : result.error.message
         );
         return;
       }
 
-      // Read role from user metadata and redirect to the correct portal
+      // Redirect based on role stored in user metadata
       const role = result.data.user?.user_metadata?.role as string | undefined;
       if (role === 'driver') {
         router.push('/driver');
@@ -60,7 +61,7 @@ export default function LoginPage() {
       }
       router.refresh();
 
-    } catch (err) {
+    } catch {
       setError('An unexpected error occurred. Please try again.');
     } finally {
       setIsLoading(false);
@@ -122,25 +123,26 @@ export default function LoginPage() {
           <form onSubmit={handleLogin} className="space-y-6">
             <div className="space-y-2">
               <label className="text-sm font-medium text-ink">
-                {activeRole === 'admin' ? 'Email Address' : 'Phone Number'}
+                {activeRole === 'admin' ? 'Email Address' : 'Username'}
               </label>
               <div className="relative">
                 {activeRole === 'admin' ? (
                   <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-ink-soft" />
                 ) : (
-                  <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-ink-soft" />
+                  <User className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-ink-soft" />
                 )}
                 <input
-                  type={activeRole === 'admin' ? 'email' : 'tel'}
+                  type={activeRole === 'admin' ? 'email' : 'text'}
                   value={identifier}
                   onChange={(e) => setIdentifier(e.target.value)}
-                  placeholder={activeRole === 'admin' ? 'admin@company.com' : '0501234567'}
+                  placeholder={activeRole === 'admin' ? 'admin@company.com' : 'e.g. ahmed_driver'}
                   required
-                  className={`w-full h-12 pl-11 pr-4 bg-paper border border-line rounded-lg text-ink focus:outline-none focus:ring-2 focus:ring-ink/20 ${activeRole !== 'admin' && 'font-mono'}`}
+                  autoComplete={activeRole === 'admin' ? 'email' : 'username'}
+                  className="w-full h-12 pl-11 pr-4 bg-paper border border-line rounded-lg text-ink focus:outline-none focus:ring-2 focus:ring-ink/20"
                 />
               </div>
               {activeRole !== 'admin' && (
-                <p className="text-xs text-ink-soft">Saudi numbers: 05xxxxxxxx — we'll add the country code automatically.</p>
+                <p className="text-xs text-ink-soft">Enter the username your admin assigned to you.</p>
               )}
             </div>
 

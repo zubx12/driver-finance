@@ -1,10 +1,11 @@
-import { createClient } from '@supabase/supabase-js';
+﻿import { createClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 
+const DOMAIN = 'driverfinance.internal';
+
 export async function POST(request: NextRequest) {
-  // 1. Verify the calling user is an admin
   const cookieStore = await cookies();
   const supabaseAuth = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -26,39 +27,38 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ message: 'Unauthorized' }, { status: 403 });
   }
 
-  // 2. Parse request body
-  const { name, phone, password, status = 'Active' } = await request.json();
-  if (!name || !phone || !password) {
-    return NextResponse.json({ message: 'name, phone, and password are required' }, { status: 400 });
+  const { name, username, password, status = 'Active' } = await request.json();
+  if (!name || !username || !password) {
+    return NextResponse.json(
+      { message: 'name, username, and password are required' },
+      { status: 400 }
+    );
   }
 
-  // 3. Use service-role client (server-side only)
+  const cleanUsername = username.trim().toLowerCase().replace(/\s+/g, '_');
+  const email = cleanUsername + '@' + DOMAIN;
+
   const adminClient = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   );
 
-  // Normalize phone to E.164 format
-  const normalizedPhone = phone.startsWith('+') ? phone : `+966${phone.replace(/^0/, '')}`;
-
-  // Create Auth user with partner role
   const { data: authData, error: authError } = await adminClient.auth.admin.createUser({
-    phone: normalizedPhone,
+    email,
     password,
-    phone_confirm: true,
-    user_metadata: { role: 'partner', name },
+    email_confirm: true,
+    user_metadata: { role: 'partner', name, username: cleanUsername },
   });
 
   if (authError) {
     return NextResponse.json({ message: authError.message }, { status: 400 });
   }
 
-  // Insert into partners table
   const { data: partnerData, error: dbError } = await adminClient
     .from('partners')
     .insert({
       name,
-      phone: normalizedPhone,
+      username: cleanUsername,
       linked_auth_id: authData.user.id,
       status,
       joined_date: new Date().toISOString().split('T')[0],
@@ -67,7 +67,6 @@ export async function POST(request: NextRequest) {
     .single();
 
   if (dbError) {
-    // Rollback: delete auth user if DB insert fails
     await adminClient.auth.admin.deleteUser(authData.user.id);
     return NextResponse.json({ message: dbError.message }, { status: 500 });
   }
