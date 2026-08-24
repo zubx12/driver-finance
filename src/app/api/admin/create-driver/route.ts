@@ -27,7 +27,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ message: 'Unauthorized' }, { status: 403 });
   }
 
-  const { name, username, password, status = 'Active' } = await request.json();
+  const { name, username, password, status = 'Active', vehicleId } = await request.json();
   if (!name || !username || !password) {
     return NextResponse.json(
       { message: 'name, username, and password are required' },
@@ -61,6 +61,7 @@ export async function POST(request: NextRequest) {
       username: cleanUsername,
       linked_auth_id: authData.user.id,
       status,
+      vehicle_id: vehicleId ?? null,
     })
     .select('id')
     .single();

@@ -2,17 +2,29 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Home, Car, PieChart, Wallet, Menu, Bell } from 'lucide-react';
+import { Home, Car, PieChart, Wallet, Menu, Bell, LogOut } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { PartnerProvider, usePartner } from '@/contexts/PartnerContext';
+import { createClient } from '@/lib/supabase/client';
+import { useRouter } from 'next/navigation';
 
-export default function PartnerLayout({ children }: { children: React.ReactNode }) {
+function PartnerLayoutInner({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const router = useRouter();
+  const { partnerName, loading } = usePartner();
   const [scrolled, setScrolled] = useState(false);
 
+  const initials = partnerName
+    ? partnerName.split(' ').map((w: string) => w[0]).join('').slice(0, 2).toUpperCase()
+    : '?';
+
+  const handleLogout = async () => {
+    await createClient().auth.signOut();
+    router.push('/login');
+  };
+
   useEffect(() => {
-    const handleScroll = () => {
-      setScrolled(window.scrollY > 10);
-    };
+    const handleScroll = () => setScrolled(window.scrollY > 10);
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
@@ -55,12 +67,12 @@ export default function PartnerLayout({ children }: { children: React.ReactNode 
         <header className={`lg:hidden sticky top-0 z-40 transition-all duration-300 px-4 py-3 flex items-center justify-between ${scrolled ? 'bg-white/80 dark:bg-zinc-950/80 backdrop-blur-xl border-b border-zinc-200 dark:border-zinc-800' : 'bg-transparent'}`}>
           <div className="flex items-center gap-3">
             <div className="h-8 w-8 rounded-full bg-indigo-100 dark:bg-indigo-900/50 flex items-center justify-center border border-indigo-200 dark:border-indigo-800">
-              <span className="text-xs font-bold text-indigo-700 dark:text-indigo-400">AK</span>
+              <span className="text-xs font-bold text-indigo-700 dark:text-indigo-400">{loading ? '…' : initials}</span>
             </div>
-            {scrolled && <h1 className="text-sm font-bold text-zinc-900 dark:text-zinc-50 animate-in fade-in">Partner Portfolio</h1>}
+            {scrolled && <h1 className="text-sm font-bold text-zinc-900 dark:text-zinc-50 animate-in fade-in">{partnerName || 'Partner Portal'}</h1>}
           </div>
-          <button className="h-8 w-8 rounded-full bg-white dark:bg-zinc-900 flex items-center justify-center shadow-sm border border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-400">
-            <Bell className="h-4 w-4" />
+          <button onClick={handleLogout} className="h-8 w-8 rounded-full bg-white dark:bg-zinc-900 flex items-center justify-center shadow-sm border border-zinc-200 dark:border-zinc-800 text-zinc-500 hover:text-rose-500 transition-colors" title="Logout">
+            <LogOut className="h-4 w-4" />
           </button>
         </header>
 
@@ -69,23 +81,19 @@ export default function PartnerLayout({ children }: { children: React.ReactNode 
           {children}
         </div>
 
-        {/* MOBILE BOTTOM NAVIGATION (Glassmorphism + Safe Area) */}
+        {/* MOBILE BOTTOM NAVIGATION */}
         <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-50">
-          <div className="absolute inset-0 bg-white/80 dark:bg-zinc-900/90 backdrop-blur-xl border-t border-zinc-200 dark:border-zinc-800 shadow-[0_-10px_40px_rgba(0,0,0,0.05)] dark:shadow-[0_-10px_40px_rgba(0,0,0,0.2)]"></div>
+          <div className="absolute inset-0 bg-white/80 dark:bg-zinc-900/90 backdrop-blur-xl border-t border-zinc-200 dark:border-zinc-800 shadow-[0_-10px_40px_rgba(0,0,0,0.05)]"></div>
           <div className="relative flex justify-around items-center px-2 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))]">
             {navItems.map((item) => {
               const isActive = pathname === item.href || (item.href !== '/partner' && pathname.startsWith(item.href));
               return (
-                <Link key={item.name} href={item.href} className="flex flex-col items-center justify-center w-full h-12 relative group tap-highlight-transparent">
-                  {isActive && (
-                    <div className="absolute -top-2 left-1/2 -translate-x-1/2 w-8 h-1 bg-indigo-500 rounded-b-full"></div>
-                  )}
+                <Link key={item.name} href={item.href} className="flex flex-col items-center justify-center w-full h-12 relative group">
+                  {isActive && <div className="absolute -top-2 left-1/2 -translate-x-1/2 w-8 h-1 bg-indigo-500 rounded-b-full"></div>}
                   <div className={`p-1.5 rounded-full transition-all duration-200 ${isActive ? 'bg-indigo-50 dark:bg-indigo-500/10 scale-110' : 'group-active:scale-95'}`}>
                     <item.icon className={`h-[22px] w-[22px] ${isActive ? 'text-indigo-600 dark:text-indigo-400' : 'text-zinc-400'}`} strokeWidth={isActive ? 2.5 : 2} />
                   </div>
-                  <span className={`text-[10px] mt-0.5 font-medium transition-colors ${isActive ? 'text-indigo-600 dark:text-indigo-400' : 'text-zinc-400'}`}>
-                    {item.name}
-                  </span>
+                  <span className={`text-[10px] mt-0.5 font-medium ${isActive ? 'text-indigo-600 dark:text-indigo-400' : 'text-zinc-400'}`}>{item.name}</span>
                 </Link>
               );
             })}
@@ -93,5 +101,13 @@ export default function PartnerLayout({ children }: { children: React.ReactNode 
         </nav>
       </main>
     </div>
+  );
+}
+
+export default function PartnerLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <PartnerProvider>
+      <PartnerLayoutInner>{children}</PartnerLayoutInner>
+    </PartnerProvider>
   );
 }

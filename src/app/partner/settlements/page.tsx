@@ -1,159 +1,130 @@
-'use client';
+﻿'use client';
 
 import { useEffect, useState } from 'react';
-import { partnerService } from '@/services/partner-service';
-import { Partner, Settlement } from '@/types/partner';
-import { Card, CardContent } from '@/components/ui/card';
-import { CheckCircle2, Circle, Clock } from 'lucide-react';
+import { createClient } from '@/lib/supabase/client';
+import { usePartner } from '@/contexts/PartnerContext';
+import { CheckCircle, Clock, Wallet } from 'lucide-react';
+
+type Tab = 'pending' | 'paid';
+
+interface Settlement {
+  id: string;
+  amount: number;
+  status: string;
+  paid_at: string | null;
+  payment_reference: string | null;
+  notes: string | null;
+  period_start: string;
+  period_end: string;
+  vehicle_name: string;
+  plate_number: string;
+  ownership_percentage: number;
+}
 
 export default function PartnerSettlementsPage() {
-  const [partner, setPartner] = useState<Partner | null>(null);
+  const { partnerId, loading: partnerLoading } = usePartner();
   const [settlements, setSettlements] = useState<Settlement[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [loading, setLoading] = useState(true);
+  const [tab, setTab] = useState<Tab>('pending');
 
   useEffect(() => {
-    async function loadData() {
-      setIsLoading(true);
-      const p = await partnerService.getCurrentPartner();
-      setPartner(p);
+    if (!partnerId) return;
+    const load = async () => {
+      setLoading(true);
+      const supabase = createClient();
+      const { data } = await supabase
+        .from('partner_settlement_view')
+        .select('*')
+        .eq('partner_id', partnerId)
+        .order('period_start', { ascending: false });
+      setSettlements(data ?? []);
+      setLoading(false);
+    };
+    load();
+  }, [partnerId]);
 
-      const s = await partnerService.getSettlements(p.id);
-      
-      // Group settlements by period for cleaner display
-      // In a real app, the API might already aggregate this or we display them individually.
-      setSettlements(s);
-      
-      setIsLoading(false);
-    }
-    loadData();
-  }, []);
+  const fmt = (n: number) => n.toLocaleString('en-SA', { minimumFractionDigits: 2 });
+  const fmtDate = (d: string) => new Date(d).toLocaleDateString('en-SA', { day: 'numeric', month: 'short', year: 'numeric' });
 
-  if (isLoading) {
-    return (
-      <div className="p-4 md:p-8 space-y-4 animate-pulse">
-        <div className="h-8 bg-zinc-200 dark:bg-zinc-800 rounded w-1/3 mb-6"></div>
-        <div className="h-32 bg-zinc-200 dark:bg-zinc-800 rounded-xl mb-4"></div>
-        <div className="h-24 bg-zinc-200 dark:bg-zinc-800 rounded-xl"></div>
-      </div>
-    );
-  }
+  const visible = settlements.filter(s => s.status === tab);
+  const totalPending = settlements.filter(s => s.status === 'pending').reduce((s, r) => s + r.amount, 0);
+  const totalPaid = settlements.filter(s => s.status === 'paid').reduce((s, r) => s + r.amount, 0);
 
-  // Calculate totals across all vehicles
-  let totalFinalized = 0;
-  let totalPaid = 0;
-  let totalPending = 0;
-
-  settlements.forEach(s => {
-    totalFinalized += s.finalizedShare;
-    totalPaid += s.paidAmount;
-    totalPending += s.remainingAmount;
-  });
-
-  // Group by period
-  const periods = Array.from(new Set(settlements.map(s => s.period)));
+  if (partnerLoading || loading) return <div className="p-6 text-zinc-400 text-sm">Loading settlements...</div>;
 
   return (
-    <div className="p-4 md:p-8 space-y-6 pb-24">
-      <header>
-        <h1 className="text-2xl font-bold tracking-tight">Settlements</h1>
-        <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">Track finalized payouts and pending balances.</p>
-      </header>
+    <div className="py-6 space-y-6 max-w-2xl mx-auto">
+      <div>
+        <h1 className="text-2xl font-bold tracking-tight">My Wallet</h1>
+        <p className="text-sm text-zinc-500">Your revenue share settlements from salary runs.</p>
+      </div>
 
-      {/* OVERVIEW CARDS */}
-      <Card className="border-indigo-200/50 bg-indigo-50/30 dark:bg-indigo-950/20 dark:border-indigo-900/50">
-        <CardContent className="p-4 space-y-4">
-          <div className="border-b border-indigo-100 dark:border-indigo-900/50 pb-4">
-            <div className="text-[10px] uppercase tracking-wider text-zinc-500 font-medium mb-1">Total Finalized</div>
-            <div className="text-xl font-bold">SAR {totalFinalized.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
+      {/* Summary Cards */}
+      <div className="grid grid-cols-2 gap-3">
+        <div className="bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 rounded-xl p-4">
+          <div className="flex items-center gap-2 text-amber-700 dark:text-amber-400 text-xs font-semibold mb-1">
+            <Clock className="h-3.5 w-3.5" />Pending
           </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <div className="text-[10px] uppercase tracking-wider text-emerald-700 dark:text-emerald-400 font-medium mb-1">Total Paid</div>
-              <div className="text-lg font-bold text-emerald-800 dark:text-emerald-300">SAR {totalPaid.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
-            </div>
-            <div className="text-right">
-              <div className="text-[10px] uppercase tracking-wider text-rose-700 dark:text-rose-400 font-medium mb-1">Total Pending</div>
-              <div className="text-lg font-bold text-rose-800 dark:text-rose-300">SAR {totalPending.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* SETTLEMENT LIST */}
-      <section className="space-y-4 pt-2">
-        <h2 className="text-sm font-semibold uppercase tracking-wider text-zinc-500">Settlement History</h2>
-        
-        <div className="space-y-4">
-          {periods.map(period => {
-            const periodSettlements = settlements.filter(s => s.period === period);
-            
-            let pFinalized = 0;
-            let pPaid = 0;
-            let pRemaining = 0;
-            let pStatus = 'Open';
-            let pDate = null;
-
-            periodSettlements.forEach(s => {
-              pFinalized += s.finalizedShare;
-              pPaid += s.paidAmount;
-              pRemaining += s.remainingAmount;
-              pStatus = s.status; // Assumes uniform status across a period for simplicity
-              if (s.paymentDate) pDate = s.paymentDate;
-            });
-
-            const isPaid = pStatus === 'Paid';
-            const isPartial = pStatus === 'Partially Paid';
-            
-            return (
-              <Card key={period} className={`border-zinc-200 dark:border-zinc-800 ${isPaid ? 'opacity-80' : ''}`}>
-                <CardContent className="p-4">
-                  <div className="flex justify-between items-start mb-4">
-                    <div>
-                      <h3 className="font-bold text-base">{period}</h3>
-                      <div className="flex items-center gap-1.5 mt-1">
-                        {isPaid ? (
-                          <CheckCircle2 className="h-3 w-3 text-emerald-500" />
-                        ) : isPartial ? (
-                          <Clock className="h-3 w-3 text-amber-500" />
-                        ) : (
-                          <Circle className="h-3 w-3 text-rose-500" />
-                        )}
-                        <span className={`text-xs font-medium ${isPaid ? 'text-emerald-600' : isPartial ? 'text-amber-600' : 'text-rose-600'}`}>
-                          {pStatus}
-                        </span>
-                        {pDate && <span className="text-xs text-zinc-500 ml-1">• On {new Date(pDate).toLocaleDateString()}</span>}
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <div className="text-[10px] text-zinc-500 uppercase tracking-wider">{pStatus === 'Open' ? 'Estimated' : 'Finalized'} Share</div>
-                      <div className="font-bold">SAR {pFinalized.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4 pt-4 border-t border-zinc-100 dark:border-zinc-800/50">
-                    <div>
-                      <div className="text-[10px] text-zinc-500 uppercase tracking-wider">Paid</div>
-                      <div className="font-semibold text-sm text-emerald-600 dark:text-emerald-400">SAR {pPaid.toLocaleString()}</div>
-                    </div>
-                    <div className="text-right">
-                      <div className="text-[10px] text-zinc-500 uppercase tracking-wider">Remaining</div>
-                      <div className="font-semibold text-sm text-rose-600 dark:text-rose-400">SAR {pRemaining.toLocaleString()}</div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          })}
-
-          {settlements.length === 0 && (
-            <div className="text-center py-12 px-4 border border-dashed border-zinc-200 dark:border-zinc-800 rounded-xl">
-              <p className="text-sm text-zinc-500">No settlements yet.</p>
-              <p className="text-xs text-zinc-400 mt-1">Finalized settlements will appear here.</p>
-            </div>
-          )}
+          <div className="text-xl font-bold text-amber-700 dark:text-amber-300">SAR {fmt(totalPending)}</div>
         </div>
-      </section>
+        <div className="bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800 rounded-xl p-4">
+          <div className="flex items-center gap-2 text-emerald-700 dark:text-emerald-400 text-xs font-semibold mb-1">
+            <CheckCircle className="h-3.5 w-3.5" />Total Paid
+          </div>
+          <div className="text-xl font-bold text-emerald-700 dark:text-emerald-300">SAR {fmt(totalPaid)}</div>
+        </div>
+      </div>
 
+      {/* Tabs */}
+      <div className="flex gap-1 p-1 bg-zinc-100 dark:bg-zinc-800 rounded-xl">
+        {(['pending', 'paid'] as Tab[]).map(t => (
+          <button key={t} onClick={() => setTab(t)} className={`flex-1 h-9 rounded-lg text-sm font-medium capitalize transition-colors ${tab === t ? 'bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 shadow-sm' : 'text-zinc-500'}`}>
+            {t === 'pending' ? `Pending (${settlements.filter(s => s.status === 'pending').length})` : `Paid (${settlements.filter(s => s.status === 'paid').length})`}
+          </button>
+        ))}
+      </div>
+
+      {/* Settlement List */}
+      {visible.length === 0 ? (
+        <div className="text-center py-16 space-y-3 text-zinc-400">
+          <Wallet className="h-10 w-10 mx-auto opacity-30" />
+          <p className="font-medium text-zinc-500">No {tab} settlements</p>
+          <p className="text-sm">{tab === 'pending' ? 'Settlements appear after admin runs and finalizes a salary calculation.' : 'Paid settlements will appear here once your admin marks them as paid.'}</p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {visible.map(s => (
+            <div key={s.id} className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-5 space-y-3">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="font-semibold text-zinc-900 dark:text-zinc-100">{s.vehicle_name}</p>
+                  <p className="text-xs text-zinc-500 font-mono">{s.plate_number} · {s.ownership_percentage}% share</p>
+                </div>
+                <span className={`shrink-0 text-xs font-semibold px-2.5 py-1 rounded-full ${s.status === 'pending' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'}`}>
+                  {s.status === 'pending' ? 'Pending' : 'Paid'}
+                </span>
+              </div>
+              <div className="flex items-center justify-between pt-2 border-t border-zinc-100 dark:border-zinc-800">
+                <div>
+                  <p className="text-xs text-zinc-500">Period</p>
+                  <p className="text-sm font-medium">{fmtDate(s.period_start)} – {fmtDate(s.period_end)}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-xs text-zinc-500">Your Share</p>
+                  <p className="text-xl font-bold text-indigo-600 dark:text-indigo-400">SAR {fmt(s.amount)}</p>
+                </div>
+              </div>
+              {s.status === 'paid' && s.paid_at && (
+                <div className="flex items-center justify-between text-xs text-zinc-400 pt-1">
+                  <span>Paid {fmtDate(s.paid_at)}</span>
+                  {s.payment_reference && <span className="font-mono">{s.payment_reference}</span>}
+                </div>
+              )}
+              {s.notes && <p className="text-xs text-zinc-500 bg-zinc-50 dark:bg-zinc-800 rounded-lg p-2">{s.notes}</p>}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
