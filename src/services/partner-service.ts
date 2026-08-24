@@ -1,4 +1,4 @@
-﻿import { 
+import { 
   Partner, 
   PartnerVehicle, 
   OwnershipArrangement, 
@@ -194,9 +194,6 @@ export const partnerService = {
   },
 
   async getMoMFinancials(currentPeriod: string, vehicleId?: string): Promise<MoMFinancials> {
-    if (!vehicleId) throw new Error("vehicleId required");
-
-    // Parse current period string like "August 2026"
     const currD = new Date(currentPeriod + ' 1');
     let previousPeriod = currentPeriod;
     
@@ -205,24 +202,77 @@ export const partnerService = {
       previousPeriod = prevD.toLocaleString('default', { month: 'long', year: 'numeric' });
     }
 
-    const current = await this.getCalculatedFinancials(currentPeriod, vehicleId);
-    const previous = await this.getCalculatedFinancials(previousPeriod, vehicleId);
-
     const calcDelta = (curr: number, prev: number) => {
       if (prev === 0) return curr > 0 ? 100 : 0;
       return ((curr - prev) / prev) * 100;
     };
 
-    return {
-      currentPeriod,
-      previousPeriod,
-      current,
-      previous,
-      deltas: {
-        totalRevenuePct: calcDelta(current.totalRevenue, previous.totalRevenue),
-        totalExpensesPct: calcDelta(current.totalExpenses, previous.totalExpenses),
-        netRevenuePct: calcDelta(current.netRevenue, previous.netRevenue),
+    const empty = () => ({ totalRevenue: 0, cashRevenue: 0, voucherRevenue: 0, totalExpenses: 0, cashExpenses: 0, netRevenue: 0, voucherCollected: 0, voucherOutstanding: 0, cashHandedOver: 0, driverCashOutstanding: 0 });
+
+    if (vehicleId) {
+      const current = await this.getCalculatedFinancials(currentPeriod, vehicleId);
+      const previous = await this.getCalculatedFinancials(previousPeriod, vehicleId);
+      return {
+        currentPeriod, previousPeriod, current, previous,
+        deltas: {
+          totalRevenuePct: calcDelta(current.totalRevenue, previous.totalRevenue),
+          totalExpensesPct: calcDelta(current.totalExpenses, previous.totalExpenses),
+          netRevenuePct: calcDelta(current.netRevenue, previous.netRevenue),
+        }
+      };
+    }
+
+    // Aggregate Mode
+    try {
+      const partner = await this.getCurrentPartner();
+      const vehicles = await this.getPartnerVehicles(partner.id);
+      
+      const current = empty();
+      const previous = empty();
+      
+      for (const v of vehicles) {
+        const ownership = await this.getOwnership(partner.id, v.id);
+        const pct = (ownership?.percentage || 0) / 100;
+        
+        const currFin = await this.getCalculatedFinancials(currentPeriod, v.id);
+        const prevFin = await this.getCalculatedFinancials(previousPeriod, v.id);
+        
+        current.totalRevenue += currFin.totalRevenue * pct;
+        current.cashRevenue += currFin.cashRevenue * pct;
+        current.voucherRevenue += currFin.voucherRevenue * pct;
+        current.totalExpenses += currFin.totalExpenses * pct;
+        current.cashExpenses += currFin.cashExpenses * pct;
+        current.netRevenue += currFin.netRevenue * pct;
+        current.voucherCollected += currFin.voucherCollected * pct;
+        current.voucherOutstanding += currFin.voucherOutstanding * pct;
+        current.cashHandedOver += currFin.cashHandedOver * pct;
+        current.driverCashOutstanding += currFin.driverCashOutstanding * pct;
+        
+        previous.totalRevenue += prevFin.totalRevenue * pct;
+        previous.cashRevenue += prevFin.cashRevenue * pct;
+        previous.voucherRevenue += prevFin.voucherRevenue * pct;
+        previous.totalExpenses += prevFin.totalExpenses * pct;
+        previous.cashExpenses += prevFin.cashExpenses * pct;
+        previous.netRevenue += prevFin.netRevenue * pct;
+        previous.voucherCollected += prevFin.voucherCollected * pct;
+        previous.voucherOutstanding += prevFin.voucherOutstanding * pct;
+        previous.cashHandedOver += prevFin.cashHandedOver * pct;
+        previous.driverCashOutstanding += prevFin.driverCashOutstanding * pct;
       }
-    };
+      
+      return {
+        currentPeriod, previousPeriod, current, previous,
+        deltas: {
+          totalRevenuePct: calcDelta(current.totalRevenue, previous.totalRevenue),
+          totalExpensesPct: calcDelta(current.totalExpenses, previous.totalExpenses),
+          netRevenuePct: calcDelta(current.netRevenue, previous.netRevenue),
+        }
+      };
+    } catch (e) {
+      return {
+        currentPeriod, previousPeriod, current: empty(), previous: empty(),
+        deltas: { totalRevenuePct: 0, totalExpensesPct: 0, netRevenuePct: 0 }
+      };
+    }
   }
 };

@@ -61,34 +61,39 @@ export default function PartnerDashboard() {
 
   useEffect(() => {
     async function loadData() {
-      setIsLoading(true);
-      const p = await partnerService.getCurrentPartner();
-      setPartner(p);
+      try {
+        setIsLoading(true);
+        const p = await partnerService.getCurrentPartner();
+        setPartner(p);
 
-      const v = await partnerService.getPartnerVehicles(p.id);
-      setVehicles(v);
+        const v = await partnerService.getPartnerVehicles(p.id);
+        setVehicles(v);
 
-      const ownRecord: Record<string, OwnershipArrangement> = {};
-      for (const vehicle of v) {
-        const o = await partnerService.getOwnership(p.id, vehicle.id);
-        if (o) ownRecord[vehicle.id] = o;
+        const ownRecord: Record<string, OwnershipArrangement> = {};
+        for (const vehicle of v) {
+          const o = await partnerService.getOwnership(p.id, vehicle.id);
+          if (o) ownRecord[vehicle.id] = o;
+        }
+        setOwnerships(ownRecord);
+
+        // Load MoM Financials (now securely handles no vehicleId)
+        const momData = await partnerService.getMoMFinancials(period);
+        setMomFinancials(momData);
+
+        // Calculate Partner's specific share by iterating over each vehicle
+        const vFinRecord: Record<string, CalculatedFinancials> = {};
+        
+        for (const vehicle of v) {
+          const vFin = await partnerService.getCalculatedFinancials(period, vehicle.id);
+          vFinRecord[vehicle.id] = vFin;
+        }
+        setVehicleFinancials(vFinRecord);
+
+      } catch (err) {
+        console.error("Failed to load partner dashboard:", err);
+      } finally {
+        setIsLoading(false);
       }
-      setOwnerships(ownRecord);
-
-      // Load MoM Financials
-      const momData = await partnerService.getMoMFinancials(period);
-      setMomFinancials(momData);
-
-      // Calculate Partner's specific share by iterating over each vehicle
-      const vFinRecord: Record<string, CalculatedFinancials> = {};
-      
-      for (const vehicle of v) {
-        const vFin = await partnerService.getCalculatedFinancials(period, vehicle.id);
-        vFinRecord[vehicle.id] = vFin;
-      }
-      setVehicleFinancials(vFinRecord);
-
-      setIsLoading(false);
     }
     loadData();
   }, [period]);
