@@ -53,7 +53,7 @@ export function DriverProvider({ children }: { children: ReactNode }) {
     const supabase = createClient();
 
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) { setLoading(false); return; }
+    if (!user) { window.location.href = '/login'; return; }
 
     // Get driver record linked to this auth user
     const { data: driver } = await supabase

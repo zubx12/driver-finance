@@ -38,7 +38,7 @@ export function PartnerProvider({ children }: { children: ReactNode }) {
     setLoading(true);
     const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) { setLoading(false); return; }
+    if (!user) { window.location.href = '/login'; return; }
 
     const { data: partner } = await supabase
       .from('partners')
