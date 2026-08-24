@@ -39,8 +39,8 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url)
   }
 
-  // Authenticated users on login page: redirect to their portal
-  if (user && isAuthRoute) {
+  // Authenticated users on login or root page: redirect to their portal
+  if (user && (isAuthRoute || pathname === '/')) {
     const role = user.user_metadata?.role as string | undefined
     const url = request.nextUrl.clone()
     url.pathname = role === 'driver' ? '/driver'
