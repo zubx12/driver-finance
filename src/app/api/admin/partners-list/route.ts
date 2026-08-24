@@ -1,4 +1,4 @@
-﻿import { createClient as createServiceClient } from '@supabase/supabase-js';
+import { createClient as createServiceClient } from '@supabase/supabase-js';
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
@@ -24,7 +24,7 @@ export async function GET() {
   const { data, error } = await admin
     .from('partners')
     .select('id, name, username, status')
-    .eq('status', 'active')
+    .eq('status', 'Active')
     .order('name');
 
   if (error) return NextResponse.json({ message: error.message }, { status: 500 });
