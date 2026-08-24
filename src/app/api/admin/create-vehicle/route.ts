@@ -1,4 +1,4 @@
-﻿import { NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
 export async function POST(request: Request) {
@@ -22,7 +22,7 @@ export async function POST(request: Request) {
         model,
         year: parseInt(year, 10),
         plate_number,
-        status: 'active'
+        status: 'Active'
       })
       .select('id')
       .single();

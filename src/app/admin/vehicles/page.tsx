@@ -152,11 +152,11 @@ export default function AdminVehiclesPage() {
                   </div>
                 </div>
                 <span className={`text-[10px] font-bold px-2 py-1 rounded-md border ${
-                  v.status === 'active'
+                  v.status?.toLowerCase() === 'active'
                     ? 'bg-emerald-50 text-emerald-700 border-emerald-100 dark:bg-emerald-900/30 dark:text-emerald-400 dark:border-emerald-800/50'
                     : 'bg-zinc-50 text-zinc-700 border-zinc-200 dark:bg-zinc-900/30 dark:text-zinc-400 dark:border-zinc-800/50'
                 }`}>
-                  {v.status === 'active' ? 'Active' : 'Inactive'}
+                  {v.status?.toLowerCase() === 'active' ? 'Active' : 'Inactive'}
                 </span>
               </div>
             </CardHeader>
