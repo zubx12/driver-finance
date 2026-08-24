@@ -10,13 +10,55 @@ import Link from 'next/link';
 export default function AdminVehiclesPage() {
   const [vehicles, setVehicles] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [make, setMake] = useState('');
+  const [model, setModel] = useState('');
+  const [year, setYear] = useState('');
+  const [plateNumber, setPlateNumber] = useState('');
 
-  useEffect(() => {
+  const loadVehicles = () => {
+    setLoading(true);
     fetch('/api/admin/vehicles-list-full')
       .then(r => r.json())
       .then(d => { if (Array.isArray(d)) setVehicles(d); })
       .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    loadVehicles();
   }, []);
+
+  const handleSubmit = async () => {
+    if (!make || !model || !year || !plateNumber) {
+      alert('Please fill in all fields');
+      return;
+    }
+    
+    setIsSaving(true);
+    try {
+      const res = await fetch('/api/admin/create-vehicle', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ make, model, year, plate_number: plateNumber })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      
+      setMake('');
+      setModel('');
+      setYear('');
+      setPlateNumber('');
+      setDrawerOpen(false);
+      loadVehicles();
+    } catch (err: any) {
+      alert(err.message);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   return (
     <div className="space-y-8 max-w-7xl mx-auto">
       <header className="flex items-center justify-between">
@@ -35,10 +77,12 @@ export default function AdminVehiclesPage() {
             </Button>
           </Link>
           
-          <Drawer>
-            <DrawerTrigger className="inline-flex items-center justify-center gap-2 whitespace-nowrap text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 disabled:pointer-events-none disabled:opacity-50 bg-indigo-600 text-white shadow hover:bg-indigo-700 h-9 px-4 py-2 rounded-xl">
-              <Plus className="h-4 w-4" />
-              Add Vehicle
+          <Drawer open={drawerOpen} onOpenChange={setDrawerOpen}>
+            <DrawerTrigger asChild>
+              <button className="inline-flex items-center justify-center gap-2 whitespace-nowrap text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 disabled:pointer-events-none disabled:opacity-50 bg-indigo-600 text-white shadow hover:bg-indigo-700 h-9 px-4 py-2 rounded-xl">
+                <Plus className="h-4 w-4" />
+                Add Vehicle
+              </button>
             </DrawerTrigger>
           <DrawerContent className="bg-white dark:bg-zinc-950 border-zinc-200 dark:border-zinc-800">
             <DrawerHeader>
@@ -49,30 +93,36 @@ export default function AdminVehiclesPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Make</label>
-                  <input type="text" className="w-full h-10 px-3 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900" placeholder="e.g. Toyota" />
+                  <input type="text" value={make} onChange={(e) => setMake(e.target.value)} className="w-full h-10 px-3 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900" placeholder="e.g. Toyota" />
                 </div>
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Model</label>
-                  <input type="text" className="w-full h-10 px-3 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900" placeholder="e.g. Camry" />
+                  <input type="text" value={model} onChange={(e) => setModel(e.target.value)} className="w-full h-10 px-3 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900" placeholder="e.g. Camry" />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Year</label>
-                  <input type="number" className="w-full h-10 px-3 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900" placeholder="e.g. 2024" />
+                  <input type="number" value={year} onChange={(e) => setYear(e.target.value)} className="w-full h-10 px-3 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900" placeholder="e.g. 2024" />
                 </div>
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Plate Number</label>
-                  <input type="text" className="w-full h-10 px-3 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900" placeholder="e.g. ABC 1234" />
+                  <input type="text" value={plateNumber} onChange={(e) => setPlateNumber(e.target.value)} className="w-full h-10 px-3 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900" placeholder="e.g. ABC 1234" />
                 </div>
               </div>
             </div>
             <DrawerFooter className="flex-row gap-2 px-6 pb-6">
-              <DrawerClose className="flex-1 inline-flex items-center justify-center whitespace-nowrap text-sm font-medium transition-colors bg-indigo-600 text-white shadow hover:bg-indigo-700 h-10 px-4 py-2 rounded-xl" onClick={() => alert('Mock: Vehicle created successfully!')}>
-                Save Vehicle
-              </DrawerClose>
-              <DrawerClose className="flex-1 inline-flex items-center justify-center whitespace-nowrap text-sm font-medium transition-colors border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 shadow-sm hover:bg-zinc-100 dark:hover:bg-zinc-800 h-10 px-4 py-2 rounded-xl">
-                Cancel
+              <button 
+                disabled={isSaving}
+                onClick={handleSubmit}
+                className="flex-1 inline-flex items-center justify-center whitespace-nowrap text-sm font-medium transition-colors bg-indigo-600 text-white shadow hover:bg-indigo-700 h-10 px-4 py-2 rounded-xl disabled:opacity-50"
+              >
+                {isSaving ? 'Saving...' : 'Save Vehicle'}
+              </button>
+              <DrawerClose asChild>
+                <button className="flex-1 inline-flex items-center justify-center whitespace-nowrap text-sm font-medium transition-colors border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 shadow-sm hover:bg-zinc-100 dark:hover:bg-zinc-800 h-10 px-4 py-2 rounded-xl">
+                  Cancel
+                </button>
               </DrawerClose>
             </DrawerFooter>
           </DrawerContent>
