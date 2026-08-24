@@ -78,11 +78,9 @@ export default function AdminVehiclesPage() {
           </Link>
           
           <Drawer open={drawerOpen} onOpenChange={setDrawerOpen}>
-            <DrawerTrigger asChild>
-              <button className="inline-flex items-center justify-center gap-2 whitespace-nowrap text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 disabled:pointer-events-none disabled:opacity-50 bg-indigo-600 text-white shadow hover:bg-indigo-700 h-9 px-4 py-2 rounded-xl">
-                <Plus className="h-4 w-4" />
-                Add Vehicle
-              </button>
+            <DrawerTrigger className="inline-flex items-center justify-center gap-2 whitespace-nowrap text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 disabled:pointer-events-none disabled:opacity-50 bg-indigo-600 text-white shadow hover:bg-indigo-700 h-9 px-4 py-2 rounded-xl">
+              <Plus className="h-4 w-4" />
+              Add Vehicle
             </DrawerTrigger>
           <DrawerContent className="bg-white dark:bg-zinc-950 border-zinc-200 dark:border-zinc-800">
             <DrawerHeader>
@@ -119,10 +117,8 @@ export default function AdminVehiclesPage() {
               >
                 {isSaving ? 'Saving...' : 'Save Vehicle'}
               </button>
-              <DrawerClose asChild>
-                <button className="flex-1 inline-flex items-center justify-center whitespace-nowrap text-sm font-medium transition-colors border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 shadow-sm hover:bg-zinc-100 dark:hover:bg-zinc-800 h-10 px-4 py-2 rounded-xl">
-                  Cancel
-                </button>
+              <DrawerClose className="flex-1 inline-flex items-center justify-center whitespace-nowrap text-sm font-medium transition-colors border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 shadow-sm hover:bg-zinc-100 dark:hover:bg-zinc-800 h-10 px-4 py-2 rounded-xl">
+                Cancel
               </DrawerClose>
             </DrawerFooter>
           </DrawerContent>
