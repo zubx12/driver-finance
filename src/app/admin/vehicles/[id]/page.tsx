@@ -7,7 +7,8 @@ import { Button } from '@/components/ui/button';
 import { ChevronLeft, Car, AlertCircle, Save, Plus, Trash2, Users } from 'lucide-react';
 import Link from 'next/link';
 
-import { MOCK_PARTNER_VEHICLES, MOCK_PAYERS, OwnershipArrangement } from '@/data/mock-partner-data';
+import { MOCK_PARTNER_VEHICLES, MOCK_PAYERS } from '@/data/mock-partner-data';
+import { OwnershipArrangement } from '@/types/partner';
 
 export default function VehicleSplitPage() {
   const params = useParams();
