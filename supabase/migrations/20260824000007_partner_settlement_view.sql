@@ -14,7 +14,7 @@ SELECT
   s.notes,
   sc.period_start,
   sc.period_end,
-  v.make || '' '' || v.model AS vehicle_name,
+  v.make || ' ' || v.model AS vehicle_name,
   v.plate_number,
   scs.ownership_percentage
 FROM settlements s
