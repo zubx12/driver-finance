@@ -4,35 +4,29 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { ChevronLeft, UserPlus, Car, CheckCircle2, History, AlertCircle, Percent } from 'lucide-react';
-import { MOCK_PARTNER_VEHICLES } from '@/data/mock-partner-data';
+import { createClient } from '@/lib/supabase/client';
 
 export default function VehicleSetupPage() {
   const params = useParams();
   const vehicleId = params.id as string;
-  const vehicle = MOCK_PARTNER_VEHICLES.find(v => v.id === vehicleId) || MOCK_PARTNER_VEHICLES[0];
+  const [vehicle, setVehicle] = useState<{ make: string; model: string; plate_number: string } | null>(null);
 
-  // Driver Compensation Model (Commission vs Fixed Salary)
+  useEffect(() => {
+    createClient().from('vehicles').select('make,model,plate_number').eq('id', vehicleId).single()
+      .then(({ data }) => { if (data) setVehicle(data); });
+  }, [vehicleId]);
+
   const [driverPayType, setDriverPayType] = useState<'commission' | 'fixed_salary'>('commission');
   const [driverCommission, setDriverCommission] = useState('35.0');
   const [driverSalary, setDriverSalary] = useState('4000.00');
-
-  // Partner Equity Splits (Must always equal 100%)
-  const [splits, setSplits] = useState<{ id: string, name: string, pct: string }[]>([
-    { id: 'PTR-2', name: 'Khalid Investor', pct: '50.0' },
-    { id: 'PTR-3', name: 'Fahad Partner', pct: '47.5' }
-  ]);
-
+  const [splits, setSplits] = useState<{ id: string, name: string, pct: string }[]>([]);
   const [total, setTotal] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    let sum = 0;
-    splits.forEach(s => {
-      const val = parseFloat(s.pct);
-      if (!isNaN(val)) sum += val;
-    });
-    setTotal(sum);
+    setTotal(splits.reduce((s, r) => s + (parseFloat(r.pct) || 0), 0));
   }, [splits]);
 
   const handlePctChange = (id: string, val: string) => {
@@ -44,22 +38,29 @@ export default function VehicleSetupPage() {
   };
 
   const handleAddInline = () => {
-    setSplits([...splits, { id: `PTR-${Date.now()}`, name: 'New Partner', pct: '0.0' }]);
+    setSplits([...splits, { id: `new-${Date.now()}`, name: 'Partner Name', pct: '0.0' }]);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (total !== 100) return;
-    setIsSubmitting(true);
-    setTimeout(() => {
-      setIsSubmitting(false);
-      setIsSuccess(true);
-    }, 800);
+    if (Math.abs(total - 100) > 0.01) return;
+    setIsSubmitting(true); setError(null);
+    const res = await fetch('/api/admin/vehicle-splits', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ vehicleId, splits: splits.map(s => ({ partnerId: s.id, percentage: s.pct })), driverPayType, driverCommission, driverSalary }),
+    });
+    const json = await res.json();
+    setIsSubmitting(false);
+    if (!res.ok) { setError(json.message); return; }
+    setIsSuccess(true);
   };
 
   const difference = 100 - total;
-  const isExact = total === 100;
+  const isExact = Math.abs(total - 100) < 0.01;
   const isOver = total > 100;
+  const vehicleLabel = vehicle ? `${vehicle.make} ${vehicle.model}` : 'Vehicle';
+  const plateLabel = vehicle?.plate_number ?? '';
 
   if (isSuccess) {
     return (
@@ -70,7 +71,7 @@ export default function VehicleSetupPage() {
           </div>
           <h2 className="font-heading text-2xl font-bold text-ink mb-2">Setup Complete</h2>
           <p className="text-ink-soft mb-8">
-            The driver compensation and new ownership split have been securely recorded for {vehicle.make} {vehicle.model}. They will apply to all future salary runs.
+            Driver compensation and ownership split saved for {vehicleLabel}. They apply to all future salary runs.
           </p>
           <div className="mt-8 pt-6 border-t border-line">
             <Link href="/admin/vehicles">
@@ -95,7 +96,7 @@ export default function VehicleSetupPage() {
         <div>
           <h1 className="font-heading text-3xl font-bold text-ink">Vehicle Setup</h1>
           <p className="text-ink-soft flex items-center gap-2">
-            <Car className="h-4 w-4" /> {vehicle.make} {vehicle.model} • <span className="font-mono">{vehicle.plateNumber}</span>
+            <Car className="h-4 w-4" /> {vehicleLabel} · <span className="font-mono">{plateLabel}</span>
           </p>
         </div>
       </div>
