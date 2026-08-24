@@ -6,15 +6,15 @@ import { Button } from '@/components/ui/button';
 import { Drawer, DrawerClose, DrawerContent, DrawerDescription, DrawerFooter, DrawerHeader, DrawerTitle, DrawerTrigger } from '@/components/ui/drawer';
 import { Car, Plus, Settings, UserPlus, Loader2 } from 'lucide-react';
 import Link from 'next/link';
-import { getAdminVehicles } from '@/lib/data/vehicles';
 
 export default function AdminVehiclesPage() {
   const [vehicles, setVehicles] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    getAdminVehicles()
-      .then(setVehicles)
+    fetch('/api/admin/vehicles-list-full')
+      .then(r => r.json())
+      .then(d => { if (Array.isArray(d)) setVehicles(d); })
       .finally(() => setLoading(false));
   }, []);
   return (

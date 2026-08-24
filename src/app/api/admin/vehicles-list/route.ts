@@ -6,7 +6,7 @@ export async function GET() {
   const { data, error } = await supabase
     .from('vehicles')
     .select('id, make, model, plate_number')
-    .eq('status', 'active')
+    .eq('status', 'Active')
     .order('make');
   if (error) return NextResponse.json({ message: error.message }, { status: 500 });
   return NextResponse.json(data ?? []);
