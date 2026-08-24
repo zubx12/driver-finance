@@ -1,10 +1,8 @@
 import { NextResponse, type NextRequest } from 'next/server'
-// import { updateSession } from '@/lib/supabase/middleware'
+import { updateSession } from '@/lib/supabase/middleware'
 
 export async function proxy(request: NextRequest) {
-  // Temporary bypass for frontend UI mock phase
-  return NextResponse.next()
-  // return await updateSession(request)
+  return await updateSession(request)
 }
 
 export const config = {
@@ -14,8 +12,8 @@ export const config = {
      * - _next/static (static files)
      * - _next/image (image optimization files)
      * - favicon.ico (favicon file)
-     * Feel free to modify this pattern to include more paths.
+     * - api/ (API routes handle their own auth)
      */
-    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+    '/((?!_next/static|_next/image|favicon.ico|api/|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
 }

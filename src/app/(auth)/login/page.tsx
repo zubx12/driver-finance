@@ -2,7 +2,8 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Shield, Briefcase, Car, Phone, Mail, Key, ArrowRight } from 'lucide-react';
+import { Shield, Briefcase, Car, Phone, Mail, Key, ArrowRight, AlertCircle } from 'lucide-react';
+import { createClient } from '@/lib/supabase/client';
 
 type Role = 'admin' | 'partner' | 'driver';
 
@@ -12,20 +13,58 @@ export default function LoginPage() {
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
-    
-    // Mock login delay
-    setTimeout(() => {
+    setError(null);
+
+    const supabase = createClient();
+
+    try {
+      let result;
+
       if (activeRole === 'admin') {
-        router.push('/admin');
+        // Admin logs in with email + password
+        result = await supabase.auth.signInWithPassword({
+          email: identifier,
+          password,
+        });
       } else {
-        alert(`Mock Login Success! Would redirect to /${activeRole} portal.`);
-        setIsLoading(false);
+        // Drivers and partners log in with phone + password
+        // Phone must be in E.164 format e.g. +966501234567
+        const phone = identifier.startsWith('+') ? identifier : `+966${identifier.replace(/^0/, '')}`;
+        result = await supabase.auth.signInWithPassword({
+          phone,
+          password,
+        });
       }
-    }, 800);
+
+      if (result.error) {
+        setError(result.error.message === 'Invalid login credentials'
+          ? 'Incorrect credentials. Please check and try again.'
+          : result.error.message
+        );
+        return;
+      }
+
+      // Read role from user metadata and redirect to the correct portal
+      const role = result.data.user?.user_metadata?.role as string | undefined;
+      if (role === 'driver') {
+        router.push('/driver');
+      } else if (role === 'partner') {
+        router.push('/partner');
+      } else {
+        router.push('/admin');
+      }
+      router.refresh();
+
+    } catch (err) {
+      setError('An unexpected error occurred. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -54,7 +93,7 @@ export default function LoginPage() {
           {/* Role Selector */}
           <div className="flex gap-2 p-1 bg-paper border border-line rounded-lg mb-8">
             <button
-              onClick={() => { setActiveRole('admin'); setIdentifier(''); }}
+              onClick={() => { setActiveRole('admin'); setIdentifier(''); setError(null); }}
               className={`flex-1 flex items-center justify-center gap-2 py-2 text-sm font-medium rounded-md transition-all ${
                 activeRole === 'admin' ? 'bg-paper-raised shadow text-ink' : 'text-ink-soft hover:text-ink hover:bg-line/20'
               }`}
@@ -62,7 +101,7 @@ export default function LoginPage() {
               <Shield className="h-4 w-4" /> Admin
             </button>
             <button
-              onClick={() => { setActiveRole('partner'); setIdentifier(''); }}
+              onClick={() => { setActiveRole('partner'); setIdentifier(''); setError(null); }}
               className={`flex-1 flex items-center justify-center gap-2 py-2 text-sm font-medium rounded-md transition-all ${
                 activeRole === 'partner' ? 'bg-paper-raised shadow text-ink' : 'text-ink-soft hover:text-ink hover:bg-line/20'
               }`}
@@ -70,7 +109,7 @@ export default function LoginPage() {
               <Briefcase className="h-4 w-4" /> Partner
             </button>
             <button
-              onClick={() => { setActiveRole('driver'); setIdentifier(''); }}
+              onClick={() => { setActiveRole('driver'); setIdentifier(''); setError(null); }}
               className={`flex-1 flex items-center justify-center gap-2 py-2 text-sm font-medium rounded-md transition-all ${
                 activeRole === 'driver' ? 'bg-paper-raised shadow text-ink' : 'text-ink-soft hover:text-ink hover:bg-line/20'
               }`}
@@ -92,20 +131,22 @@ export default function LoginPage() {
                   <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-ink-soft" />
                 )}
                 <input
-                  type={activeRole === 'admin' ? "email" : "tel"}
+                  type={activeRole === 'admin' ? 'email' : 'tel'}
                   value={identifier}
                   onChange={(e) => setIdentifier(e.target.value)}
-                  placeholder={activeRole === 'admin' ? "admin@company.com" : "0501234567"}
+                  placeholder={activeRole === 'admin' ? 'admin@company.com' : '0501234567'}
                   required
                   className={`w-full h-12 pl-11 pr-4 bg-paper border border-line rounded-lg text-ink focus:outline-none focus:ring-2 focus:ring-ink/20 ${activeRole !== 'admin' && 'font-mono'}`}
                 />
               </div>
+              {activeRole !== 'admin' && (
+                <p className="text-xs text-ink-soft">Saudi numbers: 05xxxxxxxx — we'll add the country code automatically.</p>
+              )}
             </div>
 
             <div className="space-y-2">
               <label className="text-sm font-medium text-ink flex justify-between">
                 Password
-                <a href="#" className="text-route hover:underline text-xs">Forgot?</a>
               </label>
               <div className="relative">
                 <Key className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-ink-soft" />
@@ -119,6 +160,14 @@ export default function LoginPage() {
                 />
               </div>
             </div>
+
+            {/* Error message */}
+            {error && (
+              <div className="flex items-center gap-3 p-3 bg-rose-50 border border-rose-200 rounded-lg text-rose-700 text-sm">
+                <AlertCircle className="h-4 w-4 shrink-0" />
+                {error}
+              </div>
+            )}
 
             <button
               type="submit"
