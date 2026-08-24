@@ -1,11 +1,21 @@
-﻿'use client';
+'use client';
 
 import Link from 'next/link';
-import { ChevronLeft, Car, Percent, DollarSign, Gift } from 'lucide-react';
+import { ChevronLeft, Car, Percent, DollarSign, Gift, LogOut } from 'lucide-react';
 import { useDriver } from '@/contexts/DriverContext';
+import { createClient } from '@/lib/supabase/client';
+import { db } from '@/lib/db/dexie';
 
 export default function DriverProfilePage() {
   const { driverName, username, status, vehicleMake, vehicleModel, vehiclePlate, vehicleId, payType, commissionRate, fixedSalary, bonusRate, loading } = useDriver();
+
+  const handleLogout = async () => {
+    if (!confirm('Are you sure you want to sign out? Offline data will be cleared.')) return;
+    await createClient().auth.signOut();
+    await db.delete();
+    await db.open();
+    window.location.href = '/login';
+  };
 
   const initials = driverName ? driverName.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase() : '?';
 
@@ -104,6 +114,17 @@ export default function DriverProfilePage() {
             </div>
           )}
         </div>
+
+        {/* Logout Button */}
+        <button
+          onClick={handleLogout}
+          className="w-full flex items-center justify-between p-4 bg-white dark:bg-zinc-900 border border-rose-200 dark:border-rose-900/50 rounded-2xl text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/20 transition-colors mt-8"
+        >
+          <div className="flex items-center gap-3">
+            <LogOut className="h-4 w-4" />
+            <span className="font-medium">Sign Out</span>
+          </div>
+        </button>
       </div>
     </div>
   );

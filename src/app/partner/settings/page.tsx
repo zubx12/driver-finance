@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import { usePartner } from '@/contexts/PartnerContext';
 import { createClient } from '@/lib/supabase/client';
@@ -15,7 +15,7 @@ export default function PartnerSettingsPage() {
 
   const handleLogout = async () => {
     await createClient().auth.signOut();
-    router.push('/login');
+    window.location.href = '/login';
   };
 
   if (loading) return <div className="p-6 text-zinc-400 text-sm">Loading...</div>;
