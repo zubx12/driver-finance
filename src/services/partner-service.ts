@@ -9,22 +9,14 @@ import {
   CashHandover,
   VoucherCollection
 } from '../types/partner';
-import { 
-  MOCK_LOGGED_IN_PARTNER, 
-  MOCK_PARTNER_VEHICLES, 
-  MOCK_OWNERSHIP, 
-  MOCK_SETTLEMENTS,
-  MOCK_RIDES,
-  MOCK_EXPENSES,
-  MOCK_HANDOVERS,
-  MOCK_COLLECTIONS,
-  MOCK_DRIVERS,
-  MOCK_PAYERS,
-  MOCK_ADJUSTMENTS
-} from '../data/mock-partner-data';
 
-// Simulate network latency (300ms)
-const delay = (ms: number = 300) => new Promise(resolve => setTimeout(resolve, ms));
+// Import real data layer functions
+import { getPartnerVehicles as getDbPartnerVehicles, getVehiclePartners } from '@/lib/data/vehicles';
+import { getCalculationsForVehicle } from '@/lib/data/salaryCalculations';
+import { getCurrentPartner } from '@/lib/data/partners';
+import { getAdminDrivers } from '@/lib/data/drivers';
+import { getVehicleExpenses } from '@/lib/data/expenses';
+import { getVehiclePeriodFinancials } from '@/lib/data/dailySummary';
 
 export interface CalculatedFinancials {
   totalRevenue: number;
@@ -55,165 +47,165 @@ export interface MoMFinancials {
 
 export const partnerService = {
   async getCurrentPartner(): Promise<Partner> {
-    await delay();
-    return MOCK_LOGGED_IN_PARTNER;
+    const dbPartner = await getCurrentPartner();
+    if (!dbPartner) throw new Error("Partner not found or not authenticated");
+    
+    return {
+      id: dbPartner.id,
+      name: dbPartner.name,
+      phone: dbPartner.phone,
+      joinedDate: dbPartner.joined_date,
+      status: dbPartner.status
+    };
   },
 
   async getPartnerVehicles(partnerId: string): Promise<PartnerVehicle[]> {
-    await delay();
-    return MOCK_PARTNER_VEHICLES;
+    const vehicles = await getDbPartnerVehicles(partnerId);
+    return vehicles.map(v => ({
+      id: v.id,
+      make: v.make,
+      model: v.model,
+      year: v.year,
+      plate: v.plate_number,
+      status: v.status
+    }));
   },
 
   async getOwnership(partnerId: string, vehicleId: string): Promise<OwnershipArrangement | null> {
-    await delay();
-    const ownership = MOCK_OWNERSHIP.find(o => o.partnerId === partnerId && o.vehicleId === vehicleId && o.status === 'Active');
-    return ownership || null;
+    const splits = await getVehiclePartners(vehicleId);
+    const mySplit = splits.find(s => s.partner_id === partnerId);
+    if (!mySplit) return null;
+    
+    return {
+      id: mySplit.id,
+      vehicleId: mySplit.vehicle_id,
+      partnerId: mySplit.partner_id,
+      percentage: mySplit.percentage,
+      effectiveDate: mySplit.effective_from,
+      status: mySplit.effective_to ? 'Inactive' : 'Active'
+    };
   },
 
   async getVehiclePartners(vehicleId: string): Promise<OwnershipArrangement[]> {
-    await delay();
-    return MOCK_OWNERSHIP.filter(o => o.vehicleId === vehicleId && o.status === 'Active');
+    const splits = await getVehiclePartners(vehicleId);
+    return splits.map(s => ({
+      id: s.id,
+      vehicleId: s.vehicle_id,
+      partnerId: s.partner_id,
+      percentage: s.percentage,
+      effectiveDate: s.effective_from,
+      status: s.effective_to ? 'Inactive' : 'Active'
+    }));
   },
 
   async getSettlements(partnerId: string): Promise<Settlement[]> {
-    await delay();
-    return MOCK_SETTLEMENTS.filter(s => s.partnerId === partnerId);
+    // We would need a dedicated query for partner settlements, but for now we'll fetch all 
+    // vehicles for this partner, then fetch calculations for those vehicles, and map them.
+    // In a real scenario, we'd add a getSettlementsForPartner query to salaryCalculations.ts.
+    return []; // TODO: Implement real settlement fetching for partner
   },
 
   async getAllDrivers(): Promise<Driver[]> {
-    await delay(100);
-    return MOCK_DRIVERS;
+    const drivers = await getAdminDrivers();
+    return drivers.map(d => ({
+      id: d.id,
+      name: d.name,
+      phone: d.phone,
+      status: d.status
+    }));
   },
 
   async getVehicleExpenses(vehicleId: string, period?: string): Promise<(MockExpense & { driverName: string })[]> {
-    await delay();
-    let expenses = MOCK_EXPENSES.filter(e => e.vehicleId === vehicleId);
-    if (period) {
-      expenses = expenses.filter(e => this._isDateInPeriod(e.date, period));
+    // Parse period (e.g. "August 2026") to start/end dates
+    let start = '2000-01-01';
+    let end = '2100-12-31';
+    
+    if (period && period !== 'All') {
+      const d = new Date(period + ' 1');
+      if (!isNaN(d.getTime())) {
+        start = new Date(d.getFullYear(), d.getMonth(), 1).toISOString().split('T')[0];
+        end = new Date(d.getFullYear(), d.getMonth() + 1, 0).toISOString().split('T')[0];
+      }
     }
-    // Join driver names
+    
+    const expenses = await getVehicleExpenses(vehicleId, start, end);
+    const drivers = await getAdminDrivers();
+    
     return expenses.map(e => {
-      const d = MOCK_DRIVERS.find(drv => drv.id === e.driverId);
+      const d = drivers.find(drv => drv.id === e.driver_id);
       return {
-        ...e,
-        driverName: d?.name || 'Unknown Driver'
+        id: e.id,
+        date: e.expense_date,
+        vehicleId: e.vehicle_id,
+        driverId: e.driver_id,
+        driverName: d?.name || 'Unknown Driver',
+        amount: e.amount,
+        category: e.category,
+        paymentMethod: e.payment_method,
+        description: e.description || '',
+        status: 'Approved'
       };
-    }).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    });
   },
 
   async logCashToDriver(vehicleId: string, driverId: string, amount: number, reason: string): Promise<void> {
-    await delay();
-    MOCK_ADJUSTMENTS.push({
-      id: `ADJ-${Date.now()}`,
-      date: new Date().toISOString().split('T')[0], // Today
-      vehicleId,
-      driverId,
-      amount, // Positive because the driver is receiving cash from partner, meaning driver owes company/partner more
-      reason,
-      status: 'Approved'
-    });
+    // This requires an adjustments/cash_handovers table which we noted was missing from Supabase migrations earlier.
+    console.warn("logCashToDriver not implemented in DB layer yet");
   },
 
   // ------------------------------------------------------------------
   // NEW DYNAMIC CALCULATION ENGINE
   // ------------------------------------------------------------------
   
-  // Internal helper to filter records by period
-  _isDateInPeriod(dateStr: string, period: string) {
-    if (period === 'All') return true;
+  // Helper to parse "Month YYYY" into start and end dates
+  _parsePeriod(period: string): { start: string; end: string } {
+    if (period === 'All') return { start: '2000-01-01', end: '2100-12-31' };
+    const d = new Date(period + ' 1');
+    if (isNaN(d.getTime())) return { start: '2000-01-01', end: '2100-12-31' };
     
-    // Very basic mock parsing for "August 2026"
-    const d = new Date(dateStr);
-    const m = d.toLocaleString('default', { month: 'long' });
-    const y = d.getFullYear();
-    const formatted = `${m} ${y}`;
-    
-    if (period === 'August 2026') return formatted === 'August 2026';
-    if (period === 'July 2026') return formatted === 'July 2026';
-    if (period === 'Year 2026') return y === 2026;
-    
-    return true; // Fallback
+    const start = new Date(d.getFullYear(), d.getMonth(), 1).toISOString().split('T')[0];
+    const end = new Date(d.getFullYear(), d.getMonth() + 1, 0).toISOString().split('T')[0];
+    return { start, end };
   },
 
   async getCalculatedFinancials(period: string, vehicleId?: string, driverId?: string): Promise<CalculatedFinancials> {
-    await delay();
-
-    let rides = MOCK_RIDES.filter(r => this._isDateInPeriod(r.date, period));
-    let expenses = MOCK_EXPENSES.filter(e => this._isDateInPeriod(e.date, period));
-    let handovers = MOCK_HANDOVERS.filter(h => this._isDateInPeriod(h.date, period));
-    let collections = MOCK_COLLECTIONS.filter(c => this._isDateInPeriod(c.date, period));
-    let adjustments = MOCK_ADJUSTMENTS.filter(a => this._isDateInPeriod(a.date, period));
-
-    if (vehicleId) {
-      rides = rides.filter(r => r.vehicleId === vehicleId);
-      expenses = expenses.filter(e => e.vehicleId === vehicleId);
-      handovers = handovers.filter(h => h.vehicleId === vehicleId);
-      adjustments = adjustments.filter(a => a.vehicleId === vehicleId);
-    }
-
-    if (driverId) {
-      rides = rides.filter(r => r.driverId === driverId);
-      expenses = expenses.filter(e => e.driverId === driverId);
-      handovers = handovers.filter(h => h.driverId === driverId);
-      adjustments = adjustments.filter(a => a.driverId === driverId);
-    }
-
-    let cashRevenue = 0;
-    let voucherRevenue = 0;
-    rides.forEach(r => {
-      if (r.paymentMethod === 'Cash') cashRevenue += r.amount;
-      else if (r.paymentMethod === 'Voucher') voucherRevenue += r.amount;
-    });
-    const totalRevenue = cashRevenue + voucherRevenue;
-
-    let totalExpenses = 0;
-    let cashExpenses = 0;
-    expenses.forEach(e => {
-      totalExpenses += e.amount;
-      if (e.paymentMethod === 'Cash') cashExpenses += e.amount;
-    });
-
-    let cashHandedOver = 0;
-    handovers.forEach(h => {
-      cashHandedOver += h.amount;
-    });
-
-    let voucherCollected = 0;
-    collections.forEach(c => {
-      voucherCollected += c.amount;
-    });
+    const { start, end } = this._parsePeriod(period);
     
-    let totalAdjustments = 0;
-    adjustments.forEach(a => {
-      totalAdjustments += a.amount;
-    });
-
-    const netRevenue = totalRevenue - totalExpenses;
+    // NOTE: This uses the daily_summary rollup table for blazing fast dashboards.
+    // Right now it supports vehicleId filtering. If driverId filtering is strictly needed, 
+    // we'd add it to getVehiclePeriodFinancials.
     
-    // Core formulas requested by user
-    // Positive adjustment = driver owes more (e.g. they were given cash)
-    const driverCashOutstanding = cashRevenue - cashExpenses - cashHandedOver + totalAdjustments;
-    const voucherOutstanding = voucherRevenue - voucherCollected;
-
+    if (!vehicleId) {
+      throw new Error("vehicleId is required for real DB calculations currently");
+    }
+    
+    const fins = await getVehiclePeriodFinancials(vehicleId, start, end);
+    
     return {
-      totalRevenue,
-      cashRevenue,
-      voucherRevenue,
-      totalExpenses,
-      cashExpenses,
-      netRevenue,
-      voucherCollected,
-      voucherOutstanding,
-      cashHandedOver,
-      driverCashOutstanding
+      totalRevenue: fins.totalRevenue,
+      cashRevenue: fins.cashRevenue,
+      voucherRevenue: fins.voucherRevenue,
+      totalExpenses: fins.totalExpenses,
+      cashExpenses: fins.cashExpenses,
+      netRevenue: fins.netRevenue,
+      voucherCollected: 0, // Requires collections table
+      voucherOutstanding: fins.voucherRevenue, // Assuming 0 collected for now
+      cashHandedOver: 0, // Requires cash_handovers table
+      driverCashOutstanding: fins.cashRevenue - fins.cashExpenses // Simplified without handovers/adjustments
     };
   },
 
   async getMoMFinancials(currentPeriod: string, vehicleId?: string): Promise<MoMFinancials> {
-    // Basic mock logic to get previous month
-    let previousPeriod = 'July 2026';
-    if (currentPeriod === 'July 2026') previousPeriod = 'June 2026'; // fallback
-    if (currentPeriod === 'August 2026') previousPeriod = 'July 2026';
+    if (!vehicleId) throw new Error("vehicleId required");
+
+    // Parse current period string like "August 2026"
+    const currD = new Date(currentPeriod + ' 1');
+    let previousPeriod = currentPeriod;
+    
+    if (!isNaN(currD.getTime())) {
+      const prevD = new Date(currD.getFullYear(), currD.getMonth() - 1, 1);
+      previousPeriod = prevD.toLocaleString('default', { month: 'long', year: 'numeric' });
+    }
 
     const current = await this.getCalculatedFinancials(currentPeriod, vehicleId);
     const previous = await this.getCalculatedFinancials(previousPeriod, vehicleId);
