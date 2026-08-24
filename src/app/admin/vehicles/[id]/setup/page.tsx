@@ -10,17 +10,26 @@ export default function VehicleSetupPage() {
   const params = useParams();
   const vehicleId = params.id as string;
   const [vehicle, setVehicle] = useState<{ make: string; model: string; plate_number: string } | null>(null);
+  const [partners, setPartners] = useState<{ id: string, name: string, username: string }[]>([]);
 
   useEffect(() => {
+    // Load Vehicle
     createClient().from('vehicles').select('make,model,plate_number').eq('id', vehicleId).single()
       .then(({ data }) => { if (data) setVehicle(data); });
+      
+    // Load Partners
+    fetch('/api/admin/partners-list')
+      .then(r => r.json())
+      .then(d => { if (Array.isArray(d)) setPartners(d); });
   }, [vehicleId]);
 
   const [driverPayType, setDriverPayType] = useState<'commission' | 'fixed_salary'>('commission');
   const [driverCommission, setDriverCommission] = useState('35.0');
   const [driverSalary, setDriverSalary] = useState('4000.00');
   const [driverBonus, setDriverBonus] = useState('0');
-  const [splits, setSplits] = useState<{ id: string, name: string, pct: string }[]>([]);
+  
+  // Real splits mapped to actual partner IDs
+  const [splits, setSplits] = useState<{ id: string, partnerId: string, pct: string }[]>([]);
   const [total, setTotal] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
@@ -33,27 +42,46 @@ export default function VehicleSetupPage() {
   const handlePctChange = (id: string, val: string) => {
     setSplits(splits.map(s => s.id === id ? { ...s, pct: val } : s));
   };
+  
+  const handlePartnerChange = (id: string, partnerId: string) => {
+    setSplits(splits.map(s => s.id === id ? { ...s, partnerId } : s));
+  }
 
   const handleRemove = (id: string) => {
     setSplits(splits.filter(s => s.id !== id));
   };
 
   const handleAddInline = () => {
-    setSplits([...splits, { id: `new-${Date.now()}`, name: 'Partner Name', pct: '0.0' }]);
+    setSplits([...splits, { id: `new-${Date.now()}`, partnerId: '', pct: '0.0' }]);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (Math.abs(total - 100) > 0.01) return;
+    
+    // Ensure all splits have a valid partner selected
+    const missingPartner = splits.find(s => !s.partnerId);
+    if (missingPartner) {
+        setError("Please select a partner for all splits before saving.");
+        return;
+    }
+    
     setIsSubmitting(true); setError(null);
     const res = await fetch('/api/admin/vehicle-splits', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ vehicleId, splits: splits.map(s => ({ partnerId: s.id, percentage: s.pct })), driverPayType, driverCommission, driverSalary, driverBonus }),
+      body: JSON.stringify({ 
+        vehicleId, 
+        splits: splits.map(s => ({ partnerId: s.partnerId, percentage: s.pct })), 
+        driverPayType, 
+        driverCommission, 
+        driverSalary, 
+        driverBonus 
+      }),
     });
     const json = await res.json();
     setIsSubmitting(false);
-    if (!res.ok) { setError(json.message); return; }
+    if (!res.ok) { setError(json.message || "Failed to save setup."); return; }
     setIsSuccess(true);
   };
 
@@ -76,7 +104,7 @@ export default function VehicleSetupPage() {
           </p>
           <div className="mt-8 pt-6 border-t border-line">
             <Link href="/admin/vehicles">
-              <button className="w-full h-11 bg-ink hover:bg-ink-soft text-paper-raised font-medium rounded-lg transition-colors">
+              <button className="w-full h-11 bg-ink hover:bg-ink-soft text-white font-medium rounded-lg transition-colors">
                 Return to Vehicles
               </button>
             </Link>
@@ -89,7 +117,7 @@ export default function VehicleSetupPage() {
   return (
     <div className="max-w-3xl mx-auto space-y-8">
       <div className="flex items-center gap-4">
-        <Link href={`/admin/vehicles/${vehicleId}`}>
+        <Link href={`/admin/vehicles`}>
           <button className="h-9 w-9 flex items-center justify-center rounded-lg border border-line text-ink hover:bg-paper transition-colors">
             <ChevronLeft className="h-4 w-4" />
           </button>
@@ -105,10 +133,10 @@ export default function VehicleSetupPage() {
       <form onSubmit={handleSubmit} className="space-y-6">
         
         {/* DRIVER PAY SETUP */}
-        <div className="bg-paper-raised border border-line rounded-xl shadow-sm overflow-hidden">
-          <div className="p-6 border-b border-line bg-paper/50">
-            <h3 className="font-heading text-xl font-bold text-ink">Driver Pay Setup</h3>
-            <p className="text-sm text-ink-soft">Configure compensation for the primary driver of this vehicle.</p>
+        <div className="bg-paper-raised border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-sm overflow-hidden bg-white dark:bg-zinc-950">
+          <div className="p-6 border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900/50">
+            <h3 className="text-xl font-bold">Driver Pay Setup</h3>
+            <p className="text-sm text-zinc-500">Configure compensation for the primary driver of this vehicle.</p>
           </div>
           <div className="p-6 space-y-6">
             <div className="flex gap-4">
@@ -117,13 +145,13 @@ export default function VehicleSetupPage() {
                 onClick={() => setDriverPayType('commission')}
                 className={`flex-1 p-4 border rounded-xl flex flex-col items-center text-center transition-all ${
                   driverPayType === 'commission'
-                    ? 'border-ink bg-ink text-paper-raised ring-2 ring-ink/20 ring-offset-2'
-                    : 'border-line bg-paper text-ink hover:border-ink/30'
+                    ? 'border-indigo-600 bg-indigo-600 text-white ring-2 ring-indigo-600/20 ring-offset-2'
+                    : 'border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 hover:border-zinc-300'
                 }`}
               >
                 <Percent className="h-5 w-5 mb-2 opacity-80" />
                 <span className="font-bold">Commission</span>
-                <span className={`text-xs mt-1 ${driverPayType === 'commission' ? 'text-paper-raised/70' : 'text-ink-soft'}`}>Percentage of Net Revenue</span>
+                <span className={`text-xs mt-1 ${driverPayType === 'commission' ? 'text-white/70' : 'text-zinc-500'}`}>Percentage of Net Revenue</span>
               </button>
               
               <button
@@ -131,48 +159,48 @@ export default function VehicleSetupPage() {
                 onClick={() => setDriverPayType('fixed_salary')}
                 className={`flex-1 p-4 border rounded-xl flex flex-col items-center text-center transition-all ${
                   driverPayType === 'fixed_salary'
-                    ? 'border-ink bg-ink text-paper-raised ring-2 ring-ink/20 ring-offset-2'
-                    : 'border-line bg-paper text-ink hover:border-ink/30'
+                    ? 'border-indigo-600 bg-indigo-600 text-white ring-2 ring-indigo-600/20 ring-offset-2'
+                    : 'border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 hover:border-zinc-300'
                 }`}
               >
                 <span className="font-bold text-xl mb-1 opacity-80">SAR</span>
                 <span className="font-bold">Fixed Salary</span>
-                <span className={`text-xs mt-1 ${driverPayType === 'fixed_salary' ? 'text-paper-raised/70' : 'text-ink-soft'}`}>Fixed amount per period</span>
+                <span className={`text-xs mt-1 ${driverPayType === 'fixed_salary' ? 'text-white/70' : 'text-zinc-500'}`}>Fixed amount per period</span>
               </button>
             </div>
 
-            <div className="pt-4 border-t border-line">
+            <div className="pt-4 border-t border-zinc-200 dark:border-zinc-800">
               {driverPayType === 'commission' ? (
                 <div className="space-y-2 max-w-xs">
-                  <label className="text-sm font-medium text-ink">Commission Percentage</label>
+                  <label className="text-sm font-medium">Commission Percentage</label>
                   <div className="relative flex items-center">
                     <input 
                       type="number" 
                       step="0.1"
                       value={driverCommission}
                       onChange={(e) => setDriverCommission(e.target.value)}
-                      className="w-full h-11 pr-8 bg-paper border border-line rounded-lg font-mono font-bold text-lg text-ink focus:outline-none focus:ring-2 focus:ring-ink/20 px-3"
+                      className="w-full h-11 pr-8 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg font-mono font-bold text-lg focus:outline-none focus:ring-2 focus:ring-indigo-600/20 px-3"
                     />
-                    <Percent className="absolute right-3 h-4 w-4 text-ink-soft" />
+                    <Percent className="absolute right-3 h-4 w-4 text-zinc-500" />
                   </div>
-                  <p className="text-xs text-ink-soft">Deducted as an expense before partner equity is split.</p>
+                  <p className="text-xs text-zinc-500">Deducted as an expense before partner equity is split.</p>
                 </div>
               ) : (
                 <div className="space-y-4 max-w-xs">
                   <div className="space-y-2">
-                    <label className="text-sm font-medium text-ink">Fixed Salary Amount (SAR)</label>
+                    <label className="text-sm font-medium">Fixed Salary Amount (SAR)</label>
                     <input
                       type="number"
                       step="100"
                       value={driverSalary}
                       onChange={(e) => setDriverSalary(e.target.value)}
-                      className="w-full h-11 bg-paper border border-line rounded-lg font-mono font-bold text-lg text-ink focus:outline-none focus:ring-2 focus:ring-ink/20 px-3"
+                      className="w-full h-11 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg font-mono font-bold text-lg focus:outline-none focus:ring-2 focus:ring-indigo-600/20 px-3"
                     />
-                    <p className="text-xs text-ink-soft">Paid out regardless of vehicle revenue.</p>
+                    <p className="text-xs text-zinc-500">Paid out regardless of vehicle revenue.</p>
                   </div>
 
                   <div className="space-y-2">
-                    <label className="text-sm font-medium text-ink">Performance Bonus % <span className="text-ink-soft font-normal">(optional)</span></label>
+                    <label className="text-sm font-medium">Performance Bonus % <span className="text-zinc-500 font-normal">(optional)</span></label>
                     <div className="relative flex items-center">
                       <input
                         type="number"
@@ -181,11 +209,11 @@ export default function VehicleSetupPage() {
                         max="50"
                         value={driverBonus}
                         onChange={(e) => setDriverBonus(e.target.value)}
-                        className="w-full h-11 pr-8 bg-paper border border-line rounded-lg font-mono font-bold text-lg text-ink focus:outline-none focus:ring-2 focus:ring-ink/20 px-3"
+                        className="w-full h-11 pr-8 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg font-mono font-bold text-lg focus:outline-none focus:ring-2 focus:ring-indigo-600/20 px-3"
                       />
-                      <Percent className="absolute right-3 h-4 w-4 text-ink-soft" />
+                      <Percent className="absolute right-3 h-4 w-4 text-zinc-500" />
                     </div>
-                    <p className="text-xs text-ink-soft">Bonus on net revenue after expenses. 0 = no bonus.</p>
+                    <p className="text-xs text-zinc-500">Bonus on net revenue after expenses. 0 = no bonus.</p>
                   </div>
                 </div>
               )}
@@ -194,18 +222,18 @@ export default function VehicleSetupPage() {
         </div>
 
         {/* EQUITY SPLIT SETUP */}
-        <div className="bg-paper-raised border border-line rounded-xl shadow-sm overflow-hidden">
-          <div className="p-6 border-b border-line flex justify-between items-center bg-paper/50">
+        <div className="border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-sm overflow-hidden bg-white dark:bg-zinc-950">
+          <div className="p-6 border-b border-zinc-200 dark:border-zinc-800 flex justify-between items-center bg-zinc-50 dark:bg-zinc-900/50">
             <div>
-              <h3 className="font-heading text-xl font-bold text-ink">Partner Equity Split</h3>
-              <p className="text-sm text-ink-soft">Divide the remaining Net Revenue. Must sum to exactly 100%.</p>
+              <h3 className="text-xl font-bold">Partner Equity Split</h3>
+              <p className="text-sm text-zinc-500">Divide the remaining Net Revenue. Must sum to exactly 100%.</p>
             </div>
             
             {/* Live Total Indicator */}
             <div className={`px-4 py-2 rounded-lg border flex items-center gap-2 transition-colors duration-300 ${
-              isExact ? 'bg-route/10 border-route text-route' :
-              isOver ? 'bg-red/10 border-red text-red' :
-              'bg-amber/10 border-amber text-amber'
+              isExact ? 'bg-emerald-50 border-emerald-200 text-emerald-700 dark:bg-emerald-900/30 dark:border-emerald-800/50 dark:text-emerald-400' :
+              isOver ? 'bg-rose-50 border-rose-200 text-rose-700 dark:bg-rose-900/30 dark:border-rose-800/50 dark:text-rose-400' :
+              'bg-amber-50 border-amber-200 text-amber-700 dark:bg-amber-900/30 dark:border-amber-800/50 dark:text-amber-400'
             }`}>
               {isExact ? <CheckCircle2 className="h-5 w-5" /> : <AlertCircle className="h-5 w-5" />}
               <span className="font-mono font-bold text-lg">{total.toFixed(1)}%</span>
@@ -213,28 +241,42 @@ export default function VehicleSetupPage() {
           </div>
           
           <div className="p-6 space-y-4">
+            {error && (
+                <div className="p-3 bg-red-50 text-red-700 border border-red-200 rounded-lg text-sm font-medium">
+                    {error}
+                </div>
+            )}
+            
             <div className="space-y-3">
+              {splits.length === 0 && (
+                <p className="text-sm text-zinc-500 py-4 text-center">No partners assigned yet. Add your first partner below.</p>
+              )}
               {splits.map((split) => (
-                <div key={split.id} className="flex items-center gap-4 bg-paper rounded-lg p-3 border border-line focus-within:ring-2 focus-within:ring-ink/20 focus-within:border-ink transition-all">
+                <div key={split.id} className="flex items-center gap-4 bg-white dark:bg-zinc-900 rounded-lg p-3 border border-zinc-200 dark:border-zinc-800 focus-within:ring-2 focus-within:ring-indigo-600/20 focus-within:border-indigo-600 transition-all">
                   <div className="flex-1">
-                    <input 
-                      type="text" 
-                      value={split.name}
-                      onChange={(e) => setSplits(splits.map(s => s.id === split.id ? { ...s, name: e.target.value } : s))}
-                      className="w-full bg-transparent font-medium text-ink focus:outline-none"
-                    />
+                    <select
+                        value={split.partnerId}
+                        onChange={(e) => handlePartnerChange(split.id, e.target.value)}
+                        className="w-full bg-transparent font-medium focus:outline-none appearance-none"
+                    >
+                        <option value="" disabled>Select a partner...</option>
+                        {partners.map(p => (
+                            <option key={p.id} value={p.id}>{p.name} (@{p.username})</option>
+                        ))}
+                    </select>
                   </div>
-                  <div className="w-32 relative flex items-center">
+                  <div className="w-32 relative flex items-center border-l border-zinc-200 dark:border-zinc-800 pl-4">
                     <input 
                       type="number" 
                       step="0.1"
                       value={split.pct}
                       onChange={(e) => handlePctChange(split.id, e.target.value)}
-                      className="w-full text-right pr-6 bg-transparent font-mono font-bold text-lg text-ink focus:outline-none"
+                      className="w-full text-right pr-6 bg-transparent font-mono font-bold text-lg focus:outline-none"
+                      placeholder="0.0"
                     />
-                    <Percent className="absolute right-1 h-4 w-4 text-ink-soft" />
+                    <Percent className="absolute right-1 h-4 w-4 text-zinc-400" />
                   </div>
-                  <button type="button" onClick={() => handleRemove(split.id)} className="p-2 text-ink-soft hover:text-red hover:bg-red/10 rounded transition-colors">
+                  <button type="button" onClick={() => handleRemove(split.id)} className="p-2 text-zinc-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/30 rounded transition-colors">
                     <span className="sr-only">Remove</span>
                     &times;
                   </button>
@@ -245,7 +287,7 @@ export default function VehicleSetupPage() {
             <button 
               type="button" 
               onClick={handleAddInline}
-              className="flex items-center gap-2 text-sm font-medium text-ink hover:text-route transition-colors px-2 py-2"
+              className="flex items-center gap-2 text-sm font-medium text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 transition-colors px-2 py-2"
             >
               <UserPlus className="h-4 w-4" />
               Add another partner
@@ -253,15 +295,15 @@ export default function VehicleSetupPage() {
             
             {/* Status Message based on exactness */}
             <div className="mt-6">
-              {!isExact && (
-                <p className={`text-sm font-medium ${isOver ? 'text-red' : 'text-amber'}`}>
+              {!isExact && splits.length > 0 && (
+                <p className={`text-sm font-medium ${isOver ? 'text-rose-600' : 'text-amber-600'}`}>
                   {isOver 
                     ? `Total: ${total.toFixed(1)}% — you are over by ${Math.abs(difference).toFixed(1)}%.`
-                    : `Total: ${total.toFixed(1)}% — need ${difference.toFixed(1)}% more from another partner.`}
+                    : `Total: ${total.toFixed(1)}% — need ${difference.toFixed(1)}% more to reach 100%.`}
                 </p>
               )}
-              {isExact && (
-                <p className="text-sm font-medium text-route flex items-center gap-1.5">
+              {isExact && splits.length > 0 && (
+                <p className="text-sm font-medium text-emerald-600 flex items-center gap-1.5">
                   Total: 100.0% <CheckCircle2 className="h-4 w-4" /> Split is perfectly balanced.
                 </p>
               )}
@@ -269,57 +311,38 @@ export default function VehicleSetupPage() {
           </div>
           
           {/* Review Summary before Submit */}
-          <div className="bg-paper p-6 border-t border-line flex flex-col sm:flex-row items-center justify-between gap-6">
+          <div className="bg-zinc-50 dark:bg-zinc-900 p-6 border-t border-zinc-200 dark:border-zinc-800 flex flex-col sm:flex-row items-center justify-between gap-6">
             <div className="flex-1">
-              <h4 className="text-sm font-bold text-ink mb-2 uppercase tracking-wider">Review Commit</h4>
-              {isExact ? (
+              <h4 className="text-sm font-bold mb-2 uppercase tracking-wider">Review Commit</h4>
+              {isExact && splits.length > 0 ? (
                 <div className="space-y-1">
-                  {splits.map(s => (
-                    <div key={s.id} className="flex justify-between text-sm">
-                      <span className="text-ink-soft">{s.name}</span>
-                      <span className="font-mono font-bold text-ink">{parseFloat(s.pct).toFixed(1)}%</span>
-                    </div>
-                  ))}
+                  {splits.map(s => {
+                    const matchedPartner = partners.find(p => p.id === s.partnerId);
+                    return (
+                        <div key={s.id} className="flex justify-between text-sm">
+                            <span className="text-zinc-500">{matchedPartner ? matchedPartner.name : 'Unknown Partner'}</span>
+                            <span className="font-mono font-bold">{parseFloat(s.pct).toFixed(1)}%</span>
+                        </div>
+                    )
+                  })}
                 </div>
               ) : (
-                <p className="text-sm text-ink-soft">Finish assigning 100% of the shares to review the commit.</p>
+                <p className="text-sm text-zinc-500">Finish assigning 100% of the shares to review the commit.</p>
               )}
             </div>
             
             <button 
               type="submit" 
-              disabled={!isExact || isSubmitting}
+              disabled={!isExact || isSubmitting || splits.length === 0}
               className={`h-11 px-8 rounded-lg font-medium transition-colors shrink-0 ${
-                isExact && !isSubmitting
-                  ? 'bg-route text-white shadow-sm hover:bg-route/90'
-                  : 'bg-line text-ink-soft cursor-not-allowed'
+                isExact && !isSubmitting && splits.length > 0
+                  ? 'bg-indigo-600 text-white shadow-sm hover:bg-indigo-700'
+                  : 'bg-zinc-200 dark:bg-zinc-800 text-zinc-400 dark:text-zinc-600 cursor-not-allowed'
               }`}
             >
               {isSubmitting ? 'Saving...' : 'Confirm & Save Split'}
             </button>
           </div>
-        </div>
-
-        {/* Collapsed Past Splits Context */}
-        <div className="mt-8 border border-line rounded-xl overflow-hidden bg-paper/50">
-          <details className="group">
-            <summary className="flex items-center justify-between p-4 cursor-pointer font-medium text-ink-soft hover:text-ink transition-colors">
-              <div className="flex items-center gap-2">
-                <History className="h-4 w-4" />
-                Past Splits History (Read-only)
-              </div>
-              <span className="text-xs border border-line px-2 py-0.5 rounded">1 Record</span>
-            </summary>
-            <div className="p-4 pt-0 border-t border-line/50 text-sm">
-              <div className="py-3 flex justify-between items-center opacity-70">
-                <div>
-                  <div className="font-medium">Company (100.0%)</div>
-                  <div className="text-xs text-ink-soft mt-1">Effective: Jan 1, 2026 - Present</div>
-                </div>
-                <div className="text-xs text-ink-soft font-mono">SYS-ORIGIN</div>
-              </div>
-            </div>
-          </details>
         </div>
       </form>
     </div>
