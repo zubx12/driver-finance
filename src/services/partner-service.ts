@@ -1,14 +1,10 @@
-import { 
+﻿import { 
   Partner, 
   PartnerVehicle, 
   OwnershipArrangement, 
   Settlement, 
   Driver,
-  MockRide,
-  MockExpense,
-  CashHandover,
-  VoucherCollection
-} from '../types/partner';
+        } from '../types/partner';
 
 // Import real data layer functions
 import { getPartnerVehicles as getDbPartnerVehicles, getVehiclePartners } from '@/lib/data/vehicles';
@@ -117,7 +113,7 @@ export const partnerService = {
     }));
   },
 
-  async getVehicleExpenses(vehicleId: string, period?: string): Promise<(MockExpense & { driverName: string })[]> {
+  async getVehicleExpenses(vehicleId: string, period?: string): Promise<{ id: string; date: string; vehicleId: string; driverId: string; amount: number; category: string; paymentMethod: string; description?: string; receiptUrl?: string; driverName: string }[]> {
     // Parse period (e.g. "August 2026") to start/end dates
     let start = '2000-01-01';
     let end = '2100-12-31';

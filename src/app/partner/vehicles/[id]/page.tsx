@@ -1,9 +1,9 @@
-'use client';
+﻿'use client';
 
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { partnerService, CalculatedFinancials } from '@/services/partner-service';
-import { Partner, PartnerVehicle, OwnershipArrangement, MockExpense } from '@/types/partner';
+import { Partner, PartnerVehicle, OwnershipArrangement } from '@/types/partner';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -11,7 +11,7 @@ import { Drawer, DrawerClose, DrawerContent, DrawerDescription, DrawerFooter, Dr
 import { ChevronLeft, Car, Users, TrendingUp, TrendingDown, Receipt, Image as ImageIcon, MapPin, Fuel, Wrench, Banknote } from 'lucide-react';
 import Image from 'next/image';
 
-type ExpenseWithDriver = MockExpense & { driverName: string };
+type ExpenseWithDriver = { id: string; date: string; vehicleId: string; driverId: string; amount: number; category: string; paymentMethod: string; description?: string; receiptUrl?: string; driverName: string; };
 
 export default function VehicleDetailsPage() {
   const params = useParams();
