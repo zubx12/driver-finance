@@ -19,6 +19,7 @@ export default function VehicleSetupPage() {
   const [driverPayType, setDriverPayType] = useState<'commission' | 'fixed_salary'>('commission');
   const [driverCommission, setDriverCommission] = useState('35.0');
   const [driverSalary, setDriverSalary] = useState('4000.00');
+  const [driverBonus, setDriverBonus] = useState('0');
   const [splits, setSplits] = useState<{ id: string, name: string, pct: string }[]>([]);
   const [total, setTotal] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -48,7 +49,7 @@ export default function VehicleSetupPage() {
     const res = await fetch('/api/admin/vehicle-splits', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ vehicleId, splits: splits.map(s => ({ partnerId: s.id, percentage: s.pct })), driverPayType, driverCommission, driverSalary }),
+      body: JSON.stringify({ vehicleId, splits: splits.map(s => ({ partnerId: s.id, percentage: s.pct })), driverPayType, driverCommission, driverSalary, driverBonus }),
     });
     const json = await res.json();
     setIsSubmitting(false);
@@ -157,16 +158,35 @@ export default function VehicleSetupPage() {
                   <p className="text-xs text-ink-soft">Deducted as an expense before partner equity is split.</p>
                 </div>
               ) : (
-                <div className="space-y-2 max-w-xs">
-                  <label className="text-sm font-medium text-ink">Fixed Salary Amount (SAR)</label>
-                  <input 
-                    type="number" 
-                    step="100"
-                    value={driverSalary}
-                    onChange={(e) => setDriverSalary(e.target.value)}
-                    className="w-full h-11 bg-paper border border-line rounded-lg font-mono font-bold text-lg text-ink focus:outline-none focus:ring-2 focus:ring-ink/20 px-3"
-                  />
-                  <p className="text-xs text-ink-soft">Paid out regardless of vehicle revenue.</p>
+                <div className="space-y-4 max-w-xs">
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-ink">Fixed Salary Amount (SAR)</label>
+                    <input
+                      type="number"
+                      step="100"
+                      value={driverSalary}
+                      onChange={(e) => setDriverSalary(e.target.value)}
+                      className="w-full h-11 bg-paper border border-line rounded-lg font-mono font-bold text-lg text-ink focus:outline-none focus:ring-2 focus:ring-ink/20 px-3"
+                    />
+                    <p className="text-xs text-ink-soft">Paid out regardless of vehicle revenue.</p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-ink">Performance Bonus % <span className="text-ink-soft font-normal">(optional)</span></label>
+                    <div className="relative flex items-center">
+                      <input
+                        type="number"
+                        step="0.5"
+                        min="0"
+                        max="50"
+                        value={driverBonus}
+                        onChange={(e) => setDriverBonus(e.target.value)}
+                        className="w-full h-11 pr-8 bg-paper border border-line rounded-lg font-mono font-bold text-lg text-ink focus:outline-none focus:ring-2 focus:ring-ink/20 px-3"
+                      />
+                      <Percent className="absolute right-3 h-4 w-4 text-ink-soft" />
+                    </div>
+                    <p className="text-xs text-ink-soft">Bonus on net revenue after expenses. 0 = no bonus.</p>
+                  </div>
                 </div>
               )}
             </div>

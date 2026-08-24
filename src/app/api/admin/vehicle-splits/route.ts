@@ -1,4 +1,4 @@
-﻿import { createClient as createAdmin } from '@supabase/supabase-js';
+import { createClient as createAdmin } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 
@@ -9,7 +9,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ message: 'Unauthorized' }, { status: 403 });
   }
 
-  const { vehicleId, splits, driverPayType, driverCommission, driverSalary } = await request.json();
+  const { vehicleId, splits, driverPayType, driverCommission, driverSalary, driverBonus } = await request.json();
   if (!vehicleId || !Array.isArray(splits)) {
     return NextResponse.json({ message: 'vehicleId and splits required' }, { status: 400 });
   }
@@ -49,6 +49,7 @@ export async function POST(request: NextRequest) {
       pay_type: driverPayType,
       commission_rate: driverPayType === 'commission' ? parseFloat(driverCommission) : null,
       fixed_salary: driverPayType === 'fixed_salary' ? parseFloat(driverSalary) : null,
+      bonus_rate: parseFloat(driverBonus ?? '0') || 0,
       effective_from: now,
     }, { onConflict: 'vehicle_id' });
     if (error) return NextResponse.json({ message: error.message }, { status: 500 });
