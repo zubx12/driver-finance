@@ -8,6 +8,9 @@
  * Admin can approve or reject each request with an optional note.
  */
 
+// Prevent static prerendering — this page requires auth + live data
+export const dynamic = 'force-dynamic';
+
 import { useEffect, useState, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';

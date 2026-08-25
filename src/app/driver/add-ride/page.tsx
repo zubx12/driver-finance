@@ -287,7 +287,7 @@ export default function AddRidePage() {
           </section>
 
           {/* FIXED SUBMIT BUTTON */}
-          <div className="fixed bottom-0 left-0 right-0 p-4 bg-white/80 dark:bg-zinc-950/80 backdrop-blur-md border-t dark:border-zinc-800 pb-safe">
+          <div className="fixed bottom-16 left-0 right-0 p-4 bg-white/80 dark:bg-zinc-950/80 backdrop-blur-md border-t dark:border-zinc-800 z-40">
             <Button 
               type="submit" 
               disabled={isSubmitting || !isFormValid()}

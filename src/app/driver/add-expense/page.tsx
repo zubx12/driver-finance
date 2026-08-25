@@ -286,7 +286,7 @@ export default function AddExpensePage() {
               </div>
             </section>
 
-            <div className="fixed bottom-0 left-0 right-0 p-4 bg-white/80 dark:bg-zinc-950/80 backdrop-blur-md border-t dark:border-zinc-800 pb-safe">
+            <div className="fixed bottom-16 left-0 right-0 p-4 bg-white/80 dark:bg-zinc-950/80 backdrop-blur-md border-t dark:border-zinc-800 z-40">
               <Button 
                 onClick={handleNext}
                 disabled={!isValid()}
@@ -351,7 +351,7 @@ export default function AddExpensePage() {
               </div>
             )}
 
-            <div className="fixed bottom-0 left-0 right-0 p-4 bg-white/80 dark:bg-zinc-950/80 backdrop-blur-md border-t dark:border-zinc-800 pb-safe space-y-3">
+            <div className="fixed bottom-16 left-0 right-0 p-4 bg-white/80 dark:bg-zinc-950/80 backdrop-blur-md border-t dark:border-zinc-800 space-y-3 z-40">
               <Button 
                 onClick={handleSubmit}
                 disabled={isSubmitting}
