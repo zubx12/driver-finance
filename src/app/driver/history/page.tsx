@@ -5,12 +5,23 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '@/lib/db/dexie';
 import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Car, Receipt, Clock, CheckCircle2, Wallet, Building, Circle } from 'lucide-react';
+import { Car, Receipt, Clock, CheckCircle2, Wallet, Building, Circle, Flag } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { CorrectionRequestModal } from '@/components/driver/CorrectionRequestModal';
+
 
 export default function DriverHistoryPage() {
   const [rideFilter, setRideFilter] = useState<'ALL' | 'CASH' | 'VOUCHER'>('ALL');
   const [dateFilter, setDateFilter] = useState<string>('All Time');
+  const [correctionTarget, setCorrectionTarget] = useState<{
+    type: 'ride' | 'expense';
+    id: string;
+    date: string;
+    amount: number;
+  } | null>(null);
+
+  const todayStr = new Date().toISOString().split('T')[0];
+
   
   const allRides = useLiveQuery(() => db.rides.orderBy('createdAt').reverse().toArray(), []);
   const allExpenses = useLiveQuery(() => db.expenses.orderBy('createdAt').reverse().toArray(), []);
@@ -47,6 +58,16 @@ export default function DriverHistoryPage() {
   };
 
   return (
+    <>
+      {correctionTarget && (
+        <CorrectionRequestModal
+          recordType={correctionTarget.type}
+          recordId={correctionTarget.id}
+          recordDate={correctionTarget.date}
+          recordAmount={correctionTarget.amount}
+          onClose={() => setCorrectionTarget(null)}
+        />
+      )}
     <div className="p-4 space-y-6 pb-24">
       <header className="pt-4 space-y-4">
         <h1 className="text-2xl font-bold tracking-tight">History</h1>
@@ -179,11 +200,21 @@ export default function DriverHistoryPage() {
                   </div>
                   <div className="flex items-center justify-between text-[10px] text-zinc-500 pt-2 border-t">
                      <span>{exp.date} • {new Date(exp.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
-                     <span className="inline-flex items-center gap-1 font-medium">
-                      {exp.syncStatus === 'pending' ? <Clock className="h-3 w-3" /> : <CheckCircle2 className="h-3 w-3 text-emerald-500" />}
-                      {exp.syncStatus}
-                    </span>
-                  </div>
+                     <div className="flex items-center gap-2">
+                       {exp.date !== todayStr && exp.syncStatus === 'synced' && (
+                         <button
+                           onClick={() => setCorrectionTarget({ type: 'expense', id: exp.id, date: exp.date, amount: exp.amount })}
+                           className="flex items-center gap-0.5 text-amber-500 hover:text-amber-600 font-medium"
+                         >
+                           <Flag className="h-3 w-3" /> Flag
+                         </button>
+                       )}
+                       <span className="inline-flex items-center gap-1 font-medium">
+                         {exp.syncStatus === 'pending' ? <Clock className="h-3 w-3" /> : <CheckCircle2 className="h-3 w-3 text-emerald-500" />}
+                         {exp.syncStatus}
+                       </span>
+                     </div>
+                   </div>
                 </CardContent>
               </Card>
             ))
@@ -191,5 +222,6 @@ export default function DriverHistoryPage() {
         </TabsContent>
       </Tabs>
     </div>
+    </>
   );
 }

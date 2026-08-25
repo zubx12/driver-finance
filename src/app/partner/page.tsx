@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import Link from 'next/link';
 import { partnerService, CalculatedFinancials, MoMFinancials } from '@/services/partner-service';
 import { Partner, PartnerVehicle, OwnershipArrangement } from '@/types/partner';
@@ -8,8 +8,10 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Drawer, DrawerClose, DrawerContent, DrawerDescription, DrawerFooter, DrawerHeader, DrawerTitle, DrawerTrigger } from '@/components/ui/drawer';
 import { Button } from '@/components/ui/button';
-import { Car, ChevronRight, TrendingUp, TrendingDown, Clock, Banknote, Wallet, Activity, CalendarDays } from 'lucide-react';
+import { Car, ChevronRight, TrendingUp, TrendingDown, Clock, Banknote, Wallet, Activity, CalendarDays, Radio } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, Cell } from 'recharts';
+import { useRealtimePartner } from '@/lib/realtime/use-realtime-partner';
+import { SalaryToast } from '@/components/partner/SalaryToast';
 
 // Custom tooltip for Recharts
 const CustomTooltip = ({ active, payload, label }: any) => {
@@ -58,6 +60,11 @@ export default function PartnerDashboard() {
   const [period, setPeriod] = useState('August 2026');
   const [isLoading, setIsLoading] = useState(true);
   const [drawerOpen, setDrawerOpen] = useState(false);
+
+  // Derive vehicleId list once vehicles are loaded for the realtime hook
+  const vehicleIds = useMemo(() => vehicles.map(v => v.id), [vehicles]);
+  const { vehicleFinancials: liveFinancials, salaryNotifications, isConnected, dismissSalaryNotification } =
+    useRealtimePartner(vehicleIds);
 
   useEffect(() => {
     async function loadData() {
@@ -147,6 +154,8 @@ export default function PartnerDashboard() {
   const periods = ['August 2026', 'July 2026', 'June 2026'];
 
   return (
+    <>
+    <SalaryToast notifications={salaryNotifications} onDismiss={dismissSalaryNotification} />
     <div className="pt-2 pb-24 md:p-8 space-y-6 max-w-7xl mx-auto">
       {/* HEADER SECTION - Hidden on mobile, shown on md+ */}
       <header className="hidden lg:flex flex-col md:flex-row md:justify-between md:items-end gap-4 animate-in fade-in slide-in-from-bottom-4 duration-700">
@@ -154,8 +163,13 @@ export default function PartnerDashboard() {
           <h1 className="text-3xl font-extrabold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-zinc-900 to-zinc-500 dark:from-white dark:to-zinc-400">
             Partner Portfolio
           </h1>
-          <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1 flex items-center gap-2">
-            Welcome back, <span className="font-semibold text-zinc-900 dark:text-white">{partner?.name}</span>
+          <p className="text-zinc-500 dark:text-zinc-400 text-sm flex items-center gap-2">
+            {partner?.name}
+            {isConnected && (
+              <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/30 px-1.5 py-0.5 rounded-full">
+                <Radio className="h-2 w-2 animate-pulse" />LIVE
+              </span>
+            )}
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -491,5 +505,6 @@ export default function PartnerDashboard() {
       </section>
 
     </div>
+    </>
   );
 }

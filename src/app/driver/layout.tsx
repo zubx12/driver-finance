@@ -1,35 +1,29 @@
-﻿'use client';
+'use client';
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useEffect, useState } from 'react';
-import { Home, History, Settings, WifiOff, BarChart2 } from 'lucide-react';
-import { getPendingCount } from '@/lib/data/syncQueue';
+import { useEffect } from 'react';
+import { Home, History, Settings, BarChart2 } from 'lucide-react';
 import { DriverProvider, useDriver } from '@/contexts/DriverContext';
+import { SyncStatusBanner } from '@/components/sync/SyncStatusBanner';
+import { startSyncEngine } from '@/lib/sync/sync-engine';
 
-function SyncBanner() {
-  const [isOnline, setIsOnline] = useState(true);
-  const [pendingCount, setPendingCount] = useState(0);
-  const { driverId, vehicleId } = useDriver();
+/**
+ * SyncEngineStarter
+ * Pure side-effect component that boots the sync engine once the driver's
+ * identity is resolved from Supabase. Placed inside DriverProvider so it
+ * has access to driverId and vehicleId.
+ */
+function SyncEngineStarter() {
+  const { driverId, vehicleId, loading } = useDriver();
 
   useEffect(() => {
-    setIsOnline(navigator.onLine);
-    const onOnline = () => { setIsOnline(true); getPendingCount().then(setPendingCount); };
-    const onOffline = () => setIsOnline(false);
-    window.addEventListener('online', onOnline);
-    window.addEventListener('offline', onOffline);
-    getPendingCount().then(setPendingCount);
-    return () => { window.removeEventListener('online', onOnline); window.removeEventListener('offline', onOffline); };
-  }, [driverId, vehicleId]);
+    if (loading || !driverId || !vehicleId) return;
+    // startSyncEngine returns a cleanup function — React runs it on unmount
+    return startSyncEngine(driverId, vehicleId);
+  }, [driverId, vehicleId, loading]);
 
-  if (isOnline) return null;
-  return (
-    <div className="fixed top-0 left-0 right-0 z-50 flex items-center justify-center gap-2 bg-amber-500 text-white text-xs font-semibold py-1.5">
-      <WifiOff className="h-3 w-3" />
-      Offline — entries saved locally, will sync when connected
-      {pendingCount > 0 && <span className="bg-white/20 px-1.5 py-0.5 rounded-full">{pendingCount} pending</span>}
-    </div>
-  );
+  return null;
 }
 
 function DriverNav() {
@@ -39,7 +33,9 @@ function DriverNav() {
     return pathname?.includes(path);
   };
   const cls = (path: string) =>
-    `flex flex-col items-center p-2 text-xs font-medium transition-colors ${isActive(path) ? 'text-indigo-600 dark:text-indigo-400' : 'text-zinc-500 dark:text-zinc-400'}`;
+    `flex flex-col items-center p-2 text-xs font-medium transition-colors ${
+      isActive(path) ? 'text-indigo-600 dark:text-indigo-400' : 'text-zinc-500 dark:text-zinc-400'
+    }`;
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-50 flex h-16 items-center justify-around border-t bg-white dark:bg-zinc-950 dark:border-zinc-800 pb-safe">
@@ -54,9 +50,12 @@ function DriverNav() {
 export default function DriverLayout({ children }: { children: React.ReactNode }) {
   return (
     <DriverProvider>
+      {/* Starts sync engine once driver identity is loaded */}
+      <SyncEngineStarter />
       <div className="flex min-h-screen flex-col bg-zinc-50 dark:bg-zinc-950 text-zinc-950 dark:text-zinc-50">
-        <SyncBanner />
-        <main className="flex-1 overflow-y-auto pb-16">{children}</main>
+        {/* Full-featured sync status banner (replaces the old offline-only banner) */}
+        <SyncStatusBanner />
+        <main className="flex-1 overflow-y-auto pb-16 pt-0">{children}</main>
         <DriverNav />
       </div>
     </DriverProvider>
