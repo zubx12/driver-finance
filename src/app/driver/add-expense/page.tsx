@@ -92,6 +92,10 @@ export default function AddExpensePage() {
     };
 
     await db.expenses.add(expense);
+    
+    // Trigger immediate sync so the expense appears in admin panel right away
+    import('@/lib/sync/sync-engine').then(({ runSync }) => runSync()).catch(() => {});
+    
     setIsSubmitting(false);
     router.push('/driver/expenses');
   };

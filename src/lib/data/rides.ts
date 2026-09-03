@@ -9,6 +9,7 @@ export interface DbRide {
   vehicle_id: string;
   amount: number;
   payment_method: 'Cash' | 'Voucher' | 'Card' | 'Transfer';
+  payment_status: 'Received' | 'Outstanding' | 'Collected' | 'Disputed' | 'Cancelled';
   payer_id?: string;
   reference?: string;
   ride_date: string; // YYYY-MM-DD
@@ -21,6 +22,7 @@ export interface InsertRidePayload {
   vehicle_id: string;
   amount: number;
   payment_method: 'Cash' | 'Voucher' | 'Card' | 'Transfer';
+  payment_status?: 'Received' | 'Outstanding' | 'Collected' | 'Disputed' | 'Cancelled';
   payer_id?: string;
   reference?: string;
   ride_date: string;

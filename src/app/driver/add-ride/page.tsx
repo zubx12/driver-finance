@@ -78,6 +78,9 @@ export default function AddRidePage() {
 
     await db.rides.add(ride);
     
+    // Trigger immediate sync so the ride appears in admin panel right away
+    import('@/lib/sync/sync-engine').then(({ runSync }) => runSync()).catch(() => {});
+    
     setIsSubmitting(false);
     router.push('/driver');
   };

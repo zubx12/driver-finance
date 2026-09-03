@@ -35,6 +35,7 @@ interface Ride {
   ride_date: string;
   amount: number;
   payment_method: string;
+  payment_status: string;
   notes: string | null;
 }
 
@@ -131,7 +132,7 @@ export default function DriverDetailPage() {
     setDataLoading(true);
     const supabase = createClient();
     const [ridesRes, expensesRes] = await Promise.all([
-      supabase.from('rides').select('id, ride_date, amount, payment_method, notes')
+      supabase.from('rides').select('id, ride_date, amount, payment_method, payment_status, notes')
         .eq('driver_id', id).gte('ride_date', month.start).lte('ride_date', month.end)
         .order('ride_date', { ascending: false }),
       supabase.from('expenses').select('id, expense_date, amount, category, description, receipt_image_url')
@@ -152,6 +153,8 @@ export default function DriverDetailPage() {
   const netRevenue = totalRevenue - totalExpenses;
   const cashTotal = rides.filter(r => r.payment_method === 'Cash').reduce((s, r) => s + r.amount, 0);
   const voucherTotal = rides.filter(r => r.payment_method === 'Voucher').reduce((s, r) => s + r.amount, 0);
+  const outstandingRides = rides.filter(r => r.payment_status === 'Outstanding');
+  const outstandingTotal = outstandingRides.reduce((s, r) => s + r.amount, 0);
 
   const rideItems = rides.map(r => ({ ...r, date: r.ride_date }));
   const expenseItems = expenses.map(e => ({ ...e, date: e.expense_date }));
@@ -239,7 +242,7 @@ export default function DriverDetailPage() {
       )}
 
       {/* KPI Cards */}
-      <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 grid-cols-2 lg:grid-cols-5">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-xs font-medium text-zinc-500 uppercase tracking-wider">Total Revenue</CardTitle>
@@ -277,12 +280,27 @@ export default function DriverDetailPage() {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-xs font-medium text-zinc-500 uppercase tracking-wider">Revenue Split</CardTitle>
+            <CardTitle className="text-xs font-medium text-zinc-500 uppercase tracking-wider">Cash / Voucher</CardTitle>
             <Receipt className="h-4 w-4 text-amber-500" />
           </CardHeader>
           <CardContent>
             <div className="text-lg font-bold text-emerald-600">Cash {cashTotal.toLocaleString()}</div>
             <div className="text-lg font-bold text-blue-600 mt-0.5">Voucher {voucherTotal.toLocaleString()}</div>
+          </CardContent>
+        </Card>
+
+        <Card className={outstandingTotal > 0 ? 'border-amber-300 dark:border-amber-700 bg-amber-50/50 dark:bg-amber-950/20' : ''}>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-xs font-medium text-zinc-500 uppercase tracking-wider">Outstanding</CardTitle>
+            <FileText className="h-4 w-4 text-amber-600" />
+          </CardHeader>
+          <CardContent>
+            <div className={`text-2xl font-bold ${outstandingTotal > 0 ? 'text-amber-600' : 'text-zinc-400'}`}>
+              SAR {outstandingTotal.toLocaleString()}
+            </div>
+            <p className="text-xs text-zinc-500 mt-1">
+              {outstandingRides.length} unpaid voucher{outstandingRides.length !== 1 ? 's' : ''}
+            </p>
           </CardContent>
         </Card>
       </div>

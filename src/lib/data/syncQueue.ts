@@ -29,6 +29,7 @@ export async function flushPendingRides(driverId: string, vehicleId: string): Pr
         vehicle_id: vehicleId,
         amount: localRide.amount,
         payment_method: localRide.revenueType === 'CASH' ? 'Cash' : 'Voucher',
+        payment_status: localRide.paymentStatus === 'Outstanding' ? 'Outstanding' : 'Received',
         ride_date: localRide.date,
         reference: localRide.voucherReference,
       };
