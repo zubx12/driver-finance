@@ -22,8 +22,9 @@ export async function GET() {
 
   const { data, error } = await admin
     .from('vehicles')
-    .select('id, make, model, year, plate_number, status, drivers(id, name, username), vehicle_partners(id, percentage, partners(name))')
+    .select('id, make, model, year, plate_number, status, drivers(id, name, username), vehicle_partners(id, percentage, partners(name)), driver_compensation(compensation_type, commission_percentage, fixed_salary_amount)')
     .is('vehicle_partners.effective_to', null)
+    .is('driver_compensation.effective_to', null)
     .order('make');
 
   if (error) return NextResponse.json({ message: error.message }, { status: 500 });

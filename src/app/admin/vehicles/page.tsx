@@ -10,7 +10,9 @@ import Link from 'next/link';
 export default function AdminVehiclesPage() {
   const [vehicles, setVehicles] = useState<any[]>([]);
   const [partners, setPartners] = useState<any[]>([]);
+  const [allDrivers, setAllDrivers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [assigningVehicle, setAssigningVehicle] = useState<string | null>(null);
   
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -23,16 +25,29 @@ export default function AdminVehiclesPage() {
     setLoading(true);
     Promise.all([
       fetch('/api/admin/vehicles-list-full').then(r => r.json()),
-      fetch('/api/admin/partners-list').then(r => r.json())
-    ]).then(([vehiclesData, partnersData]) => {
+      fetch('/api/admin/partners-list').then(r => r.json()),
+      fetch('/api/admin/drivers-list-full').then(r => r.json()),
+    ]).then(([vehiclesData, partnersData, driversData]) => {
       if (Array.isArray(vehiclesData)) setVehicles(vehiclesData);
       if (Array.isArray(partnersData)) setPartners(partnersData);
+      if (Array.isArray(driversData)) setAllDrivers(driversData);
     }).finally(() => setLoading(false));
   };
 
   useEffect(() => {
     loadVehicles();
   }, []);
+
+  const assignDriver = async (vehicleId: string, driverId: string | null) => {
+    setAssigningVehicle(vehicleId);
+    await fetch('/api/admin/assign-driver', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ vehicle_id: vehicleId, driver_id: driverId || null }),
+    });
+    loadVehicles();
+    setAssigningVehicle(null);
+  };
 
   const handleSubmit = async () => {
     if (!make || !model || !year || !plateNumber) {
@@ -167,18 +182,30 @@ export default function AdminVehiclesPage() {
               </CardHeader>
                 <CardContent className="p-0 flex flex-col bg-zinc-50 dark:bg-zinc-900/20 rounded-b-2xl">
                 {/* DRIVER ROW */}
-                <div className="px-4 py-3 border-b border-zinc-100 dark:border-zinc-800 flex items-center justify-between">
-                  <div className="flex flex-col">
-                    <span className="text-[10px] uppercase font-bold text-zinc-400 tracking-wider mb-1">Assigned Driver</span>
-                    {v.drivers && v.drivers.length > 0 ? (
-                      <span className="text-sm font-medium text-zinc-900 dark:text-zinc-100 flex items-center gap-1.5">
-                        <User className="h-3.5 w-3.5 text-indigo-500" />
-                        {v.drivers[0].name}
-                      </span>
-                    ) : (
-                      <span className="text-xs text-zinc-400 font-medium bg-white dark:bg-zinc-950 px-2 py-1 rounded-md border border-zinc-200 dark:border-zinc-800 w-max">No Driver</span>
-                    )}
-                  </div>
+                <div className="px-4 py-3 border-b border-zinc-100 dark:border-zinc-800">
+                  <span className="text-[10px] uppercase font-bold text-zinc-400 tracking-wider mb-1.5 block">Assigned Driver</span>
+                  <select
+                    value={v.drivers?.[0]?.id || ''}
+                    disabled={assigningVehicle === v.id}
+                    onChange={(e) => assignDriver(v.id, e.target.value || null)}
+                    className="w-full h-9 px-3 rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-sm font-medium text-zinc-800 dark:text-zinc-200 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all disabled:opacity-50 appearance-none cursor-pointer"
+                    style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%239ca3af' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 10px center' }}
+                  >
+                    <option value="">— No Driver —</option>
+                    {allDrivers.map(d => (
+                      <option key={d.id} value={d.id}>{d.name}{d.username ? ` (@${d.username})` : ''}</option>
+                    ))}
+                  </select>
+
+                  {/* Commission / Salary info */}
+                  {(() => {
+                    const comp = v.driver_compensation?.[0];
+                    if (!comp) return <p className="text-[10px] text-zinc-400 mt-1.5">Pay: Not configured</p>;
+                    if (comp.compensation_type === 'commission') {
+                      return <p className="text-[10px] text-indigo-600 font-semibold mt-1.5">Commission: {comp.commission_percentage}%</p>;
+                    }
+                    return <p className="text-[10px] text-emerald-600 font-semibold mt-1.5">Fixed Salary: SAR {Number(comp.fixed_salary_amount).toLocaleString()}</p>;
+                  })()}
                 </div>
 
                 {/* PARTNERS ROW */}

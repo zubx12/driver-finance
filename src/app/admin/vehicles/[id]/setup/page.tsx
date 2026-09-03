@@ -11,6 +11,9 @@ export default function VehicleSetupPage() {
   const vehicleId = params.id as string;
   const [vehicle, setVehicle] = useState<{ make: string; model: string; plate_number: string } | null>(null);
   const [partners, setPartners] = useState<{ id: string, name: string, username: string }[]>([]);
+  const [allDrivers, setAllDrivers] = useState<{ id: string, name: string, username: string | null }[]>([]);
+  const [assignedDriverId, setAssignedDriverId] = useState<string>('');
+  const [isAssigning, setIsAssigning] = useState(false);
 
   useEffect(() => {
     // Load Vehicle
@@ -21,7 +24,30 @@ export default function VehicleSetupPage() {
     fetch('/api/admin/partners-list')
       .then(r => r.json())
       .then(d => { if (Array.isArray(d)) setPartners(d); });
+
+    // Load all drivers for the dropdown
+    fetch('/api/admin/drivers-list-full')
+      .then(r => r.json())
+      .then(d => {
+        if (Array.isArray(d)) {
+          setAllDrivers(d);
+          // Find the driver assigned to this vehicle
+          const assigned = d.find((dr: any) => dr.vehicle_id === vehicleId);
+          if (assigned) setAssignedDriverId(assigned.id);
+        }
+      });
   }, [vehicleId]);
+
+  const handleAssignDriver = async (driverId: string) => {
+    setIsAssigning(true);
+    setAssignedDriverId(driverId);
+    await fetch('/api/admin/assign-driver', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ vehicle_id: vehicleId, driver_id: driverId || null }),
+    });
+    setIsAssigning(false);
+  };
 
   // Load existing splits for this vehicle
   useEffect(() => {
@@ -165,6 +191,36 @@ export default function VehicleSetupPage() {
 
       <form onSubmit={handleSubmit} className="space-y-6">
         
+        {/* ASSIGNED DRIVER */}
+        <div className="bg-paper-raised border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-sm overflow-hidden bg-white dark:bg-zinc-950">
+          <div className="p-6 border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900/50">
+            <h3 className="text-xl font-bold flex items-center gap-2">
+              <UserPlus className="h-5 w-5 text-indigo-500" />
+              Assigned Driver
+            </h3>
+            <p className="text-sm text-zinc-500">Select the primary driver for this vehicle.</p>
+          </div>
+          <div className="p-6">
+            <select
+              value={assignedDriverId}
+              disabled={isAssigning}
+              onChange={(e) => handleAssignDriver(e.target.value)}
+              className="w-full h-11 px-4 rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-sm font-medium text-zinc-800 dark:text-zinc-200 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all disabled:opacity-50"
+            >
+              <option value="">— No Driver Assigned —</option>
+              {allDrivers.map(d => (
+                <option key={d.id} value={d.id}>{d.name}{d.username ? ` (@${d.username})` : ''}</option>
+              ))}
+            </select>
+            {isAssigning && <p className="text-xs text-indigo-500 mt-2 animate-pulse">Saving assignment...</p>}
+            {!isAssigning && assignedDriverId && (
+              <p className="text-xs text-emerald-500 mt-2 flex items-center gap-1">
+                <CheckCircle2 className="h-3 w-3" /> Driver assigned to this vehicle
+              </p>
+            )}
+          </div>
+        </div>
+
         {/* DRIVER PAY SETUP */}
         <div className="bg-paper-raised border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-sm overflow-hidden bg-white dark:bg-zinc-950">
           <div className="p-6 border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900/50">
