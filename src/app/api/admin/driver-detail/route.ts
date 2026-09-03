@@ -68,7 +68,7 @@ export async function GET(request: NextRequest) {
 
   const [ridesRes, expensesRes] = await Promise.all([
     admin.from('rides')
-      .select('id, ride_date, amount, payment_method, payment_status, notes')
+      .select('id, ride_date, amount, payment_method, payment_status, payer_id, reference, notes, payers(name)')
       .eq('driver_id', id)
       .gte('ride_date', startDate)
       .lte('ride_date', endDate)

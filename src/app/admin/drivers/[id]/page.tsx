@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerFooter, DrawerClose, DrawerTrigger } from '@/components/ui/drawer';
 import { 
   ChevronLeft, Car, DollarSign, TrendingDown, TrendingUp, Receipt,
-  ChevronDown, ImageIcon, Fuel, Wrench, FileText
+  ChevronDown, ImageIcon, Fuel, Wrench, FileText, Building
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -35,7 +35,10 @@ interface Ride {
   amount: number;
   payment_method: string;
   payment_status: string;
+  payer_id: string | null;
+  reference: string | null;
   notes: string | null;
+  payers: { name: string } | null;
 }
 
 interface Expense {
@@ -302,6 +305,51 @@ export default function DriverDetailPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Outstanding Breakdown by Payer — only shown when there are outstanding vouchers */}
+      {outstandingRides.length > 0 && (
+        <Card className="border-amber-200 dark:border-amber-800 bg-amber-50/30 dark:bg-amber-950/10">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-semibold flex items-center gap-2">
+              <FileText className="h-4 w-4 text-amber-600" />
+              Outstanding Vouchers ({outstandingRides.length} unpaid — SAR {outstandingTotal.toLocaleString()})
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pt-0">
+            {(() => {
+              // Group outstanding rides by payer
+              const groups: Record<string, { name: string; rides: typeof outstandingRides; total: number }> = {};
+              for (const r of outstandingRides) {
+                const key = r.payer_id || 'unknown';
+                const name = r.payers?.name || 'Unknown Payer';
+                if (!groups[key]) groups[key] = { name, rides: [], total: 0 };
+                groups[key].rides.push(r);
+                groups[key].total += r.amount;
+              }
+              return Object.entries(groups).map(([payerId, group]) => (
+                <div key={payerId} className="mb-4 last:mb-0">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Building className="h-4 w-4 text-blue-600" />
+                    <span className="font-semibold text-sm">{group.name}</span>
+                    <span className="ml-auto font-bold text-amber-600">SAR {group.total.toLocaleString()}</span>
+                  </div>
+                  <div className="space-y-1 pl-6">
+                    {group.rides.map(r => (
+                      <div key={r.id} className="flex items-center justify-between text-xs py-1.5 px-3 bg-white/60 dark:bg-zinc-900/30 rounded-md">
+                        <span className="text-zinc-600 dark:text-zinc-400">
+                          {new Date(r.ride_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                          {r.reference ? ` · Ref: ${r.reference}` : ''}
+                        </span>
+                        <span className="font-semibold text-amber-600">SAR {r.amount.toLocaleString()}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ));
+            })()}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Tabs: Rides / Expenses */}
       <Card className="border-zinc-200 dark:border-zinc-800">
