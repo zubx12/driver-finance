@@ -1,6 +1,15 @@
 -- Migration: Add payment_status to rides + create payers table
 -- This enables voucher outstanding payment tracking
 
+-- FIX: audit_log table is missing columns that the trigger function expects
+-- Migration 20260903000002 rewrote log_audit_changes() to use action/old_values/new_values
+-- but the table still has field_changed/old_value/new_value from the initial schema.
+ALTER TABLE public.audit_log ADD COLUMN IF NOT EXISTS action TEXT;
+ALTER TABLE public.audit_log ADD COLUMN IF NOT EXISTS old_values JSONB;
+ALTER TABLE public.audit_log ADD COLUMN IF NOT EXISTS new_values JSONB;
+-- Make field_changed nullable since the new trigger uses action/old_values/new_values instead
+ALTER TABLE public.audit_log ALTER COLUMN field_changed DROP NOT NULL;
+
 -- 1. Add payment_status column to rides
 -- Cash rides default to 'Received', voucher rides will be 'Outstanding'
 ALTER TABLE public.rides
