@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
@@ -77,7 +77,11 @@ export default function DriversList() {
                 )}
                 {filtered.map((driver) => (
                   <tr key={driver.id} className="hover:bg-zinc-50/50 dark:hover:bg-zinc-900/30 transition-colors">
-                    <td className="px-6 py-4 font-medium">{driver.name}</td>
+                    <td className="px-6 py-4 font-medium">
+                      <Link href={`/admin/drivers/${driver.id}`} className="text-indigo-600 hover:text-indigo-700 hover:underline">
+                        {driver.name}
+                      </Link>
+                    </td>
                     <td className="px-6 py-4 text-zinc-500 font-mono">
                       {driver.username ? `@${driver.username}` : <span className="text-zinc-300 italic">not set</span>}
                     </td>
