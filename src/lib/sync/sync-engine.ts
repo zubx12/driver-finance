@@ -69,7 +69,7 @@ let _driverId = '';
 let _vehicleId = '';
 
 export async function runSync() {
-  if (_isSyncRunning || !_driverId || !_vehicleId) return;
+  if (_isSyncRunning || !_driverId) return;
   if (!navigator.onLine) {
     await refreshPendingCount();
     return;
@@ -141,7 +141,7 @@ function watchDexieChanges(): () => void {
       _debounceTimer = window.setTimeout(() => runSync(), 800);
     }
     lastCount = count;
-  }, 250);
+  }, 5000);
 
   return () => window.clearInterval(intervalId);
 }

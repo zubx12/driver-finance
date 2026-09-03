@@ -56,8 +56,12 @@ export default function LoginPage() {
         router.push('/driver');
       } else if (role === 'partner') {
         router.push('/partner');
-      } else {
+      } else if (role === 'admin') {
         router.push('/admin');
+      } else {
+        setError('Your account role is not recognized. Please contact an administrator.');
+        await supabase.auth.signOut();
+        return;
       }
       router.refresh();
 

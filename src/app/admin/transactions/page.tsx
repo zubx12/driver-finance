@@ -1,14 +1,15 @@
-﻿'use client';
+'use client';
 
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Search, Edit, Receipt, Car } from 'lucide-react';
+import { Search, Edit, Receipt, Car, ImageIcon } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { createClient } from '@/lib/supabase/client';
+import { Drawer, DrawerClose, DrawerContent, DrawerFooter, DrawerHeader, DrawerTitle, DrawerTrigger } from '@/components/ui/drawer';
 
 type TrxType = 'All' | 'Ride' | 'Expense';
-interface Transaction { id: string; type: 'Ride' | 'Expense'; driverName: string; vehiclePlate: string; amount: number; detail: string; date: string; }
+interface Transaction { id: string; type: 'Ride' | 'Expense'; driverName: string; vehiclePlate: string; amount: number; detail: string; date: string; receipt_image_url?: string; }
 
 export default function AdminTransactionsPage() {
   const [filter, setFilter] = useState<TrxType>('All');
@@ -22,10 +23,10 @@ export default function AdminTransactionsPage() {
       const monthStart = new Date().toISOString().slice(0, 7) + '-01';
       const [ridesRes, expensesRes] = await Promise.all([
         supabase.from('rides').select('id, amount, payment_method, ride_date, drivers(name), vehicles(plate_number)').gte('ride_date', monthStart).order('ride_date', { ascending: false }).limit(200),
-        supabase.from('expenses').select('id, amount, category, expense_date, drivers(name), vehicles(plate_number)').gte('expense_date', monthStart).order('expense_date', { ascending: false }).limit(200),
+        supabase.from('expenses').select('id, amount, category, expense_date, receipt_image_url, drivers(name), vehicles(plate_number)').gte('expense_date', monthStart).order('expense_date', { ascending: false }).limit(200),
       ]);
       const rides: Transaction[] = (ridesRes.data ?? []).map((r: any) => ({ id: 'RDE-' + r.id.slice(0,6).toUpperCase(), type: 'Ride', driverName: r.drivers?.name ?? 'Unknown', vehiclePlate: r.vehicles?.plate_number ?? '—', amount: r.amount, detail: r.payment_method, date: r.ride_date }));
-      const expenses: Transaction[] = (expensesRes.data ?? []).map((e: any) => ({ id: 'EXP-' + e.id.slice(0,6).toUpperCase(), type: 'Expense', driverName: e.drivers?.name ?? 'Unknown', vehiclePlate: e.vehicles?.plate_number ?? '—', amount: e.amount, detail: e.category, date: e.expense_date }));
+      const expenses: Transaction[] = (expensesRes.data ?? []).map((e: any) => ({ id: 'EXP-' + e.id.slice(0,6).toUpperCase(), type: 'Expense', driverName: e.drivers?.name ?? 'Unknown', vehiclePlate: e.vehicles?.plate_number ?? '—', amount: e.amount, detail: e.category, date: e.expense_date, receipt_image_url: e.receipt_image_url }));
       setTransactions([...rides, ...expenses].sort((a, b) => b.date.localeCompare(a.date)));
       setLoading(false);
     }
@@ -87,7 +88,32 @@ export default function AdminTransactionsPage() {
                           <div><div className="font-bold">{trx.id}</div><div className="text-xs text-zinc-500">{trx.type}</div></div>
                         </div>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap"><div className="font-medium">{trx.driverName}</div><div className="text-xs text-zinc-500">{trx.vehiclePlate} &middot; {trx.detail}</div></td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="font-medium">{trx.driverName}</div>
+                        <div className="text-xs text-zinc-500 flex items-center gap-2">
+                          {trx.vehiclePlate} &middot; {trx.detail}
+                          {trx.receipt_image_url && (
+                            <Drawer>
+                              <DrawerTrigger>
+                                <Button variant="outline" size="sm" className="h-6 px-2 text-[10px] gap-1"><ImageIcon className="h-3 w-3" />Receipt</Button>
+                              </DrawerTrigger>
+                              <DrawerContent className="max-h-[90vh]">
+                                <DrawerHeader>
+                                  <DrawerTitle>Receipt Image</DrawerTitle>
+                                </DrawerHeader>
+                                <div className="p-4 overflow-auto flex justify-center">
+                                  <img src={trx.receipt_image_url} alt="Receipt" className="max-w-full h-auto object-contain rounded-md border" style={{ maxHeight: '60vh' }} />
+                                </div>
+                                <DrawerFooter>
+                                  <DrawerClose>
+                                    <Button variant="outline">Close</Button>
+                                  </DrawerClose>
+                                </DrawerFooter>
+                              </DrawerContent>
+                            </Drawer>
+                          )}
+                        </div>
+                      </td>
                       <td className="px-6 py-4 whitespace-nowrap font-bold">SAR {trx.amount.toLocaleString()}</td>
                       <td className="px-6 py-4 whitespace-nowrap text-zinc-500">{trx.date}</td>
                       <td className="px-6 py-4 whitespace-nowrap text-right">

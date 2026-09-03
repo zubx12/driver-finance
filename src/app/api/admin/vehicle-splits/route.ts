@@ -14,6 +14,12 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ message: 'vehicleId and splits required' }, { status: 400 });
   }
 
+  const totalPct = splits.reduce((sum: number, s: any) => sum + (parseFloat(s.percentage) || 0), 0);
+  if (Math.abs(totalPct - 100) > 0.01) {
+    return NextResponse.json({ message: `Split percentages must sum to 100%. Got ${totalPct.toFixed(1)}%` }, { status: 400 });
+  }
+
+
   const admin = createAdmin(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!

@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import React, { useState } from 'react';
 import Link from 'next/link';
@@ -30,9 +30,9 @@ export default function DriverDashboard() {
   const allAdvances  = useLiveQuery(() => db.advances.toArray(), [], []);
 
   const filterByPeriod = (itemDate: string) => {
-    const todayStr = new Date().toISOString().split('T')[0];
+    const todayStr = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Riyadh' });
     const d = new Date(itemDate);
-    const now = new Date();
+    const now = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Riyadh' }));
     switch (period) {
       case 'Today':      return itemDate === todayStr;
       case 'This Week':  return d >= new Date(now.getTime() - 7 * 86400000);

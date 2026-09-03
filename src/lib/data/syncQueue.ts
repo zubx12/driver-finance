@@ -58,17 +58,21 @@ export async function flushPendingExpenses(driverId: string, vehicleId: string):
 
   for (const localExpense of pending) {
     try {
-      let receiptUrl = 'placeholder'; // Will be replaced if image exists
-
-      // Upload receipt image if present (base64 → Storage)
-      if (localExpense.receiptImageBase64) {
-        const storagePath = await uploadReceiptFromBase64(
-          driverId,
-          localExpense.date,
-          localExpense.receiptImageBase64
-        );
-        receiptUrl = storagePath;
+      // AGENTS.md Rule #3: An expense without a receipt image must be impossible.
+      // If no receipt image exists, mark this expense as failed rather than using a fake URL.
+      if (!localExpense.receiptImageBase64) {
+        console.error(`Expense ${localExpense.id} is missing a receipt image. Skipping sync.`);
+        await db.expenses.update(localExpense.id, { syncStatus: 'failed' });
+        failed++;
+        continue;
       }
+
+      const storagePath = await uploadReceiptFromBase64(
+        driverId,
+        localExpense.date,
+        localExpense.receiptImageBase64
+      );
+      let receiptUrl = storagePath;
 
       const payload: InsertExpensePayload = {
         driver_id: driverId,
@@ -104,7 +108,7 @@ export async function flushPendingExpenses(driverId: string, vehicleId: string):
  */
 export async function syncAll(driverId: string, vehicleId: string): Promise<SyncResult> {
   const [ridesResult, expensesResult] = await Promise.all([
-    flushPendingRides(driverId, vehicleId),
+    vehicleId ? flushPendingRides(driverId, vehicleId) : Promise.resolve({ succeeded: 0, failed: 0 }),
     flushPendingExpenses(driverId, vehicleId),
   ]);
 

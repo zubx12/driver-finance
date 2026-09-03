@@ -10,7 +10,21 @@ export default function DriverProfilePage() {
   const { driverName, username, status, vehicleMake, vehicleModel, vehiclePlate, vehicleId, payType, commissionRate, fixedSalary, bonusRate, loading } = useDriver();
 
   const handleLogout = async () => {
-    if (!confirm('Are you sure you want to sign out? Offline data will be cleared.')) return;
+    // Check for unsynced data before allowing logout
+    const pendingRides = await db.rides.where('syncStatus').equals('pending').count();
+    const pendingExpenses = await db.expenses.where('syncStatus').equals('pending').count();
+    const totalPending = pendingRides + pendingExpenses;
+
+    if (totalPending > 0) {
+      const proceed = confirm(
+        `You have ${totalPending} unsynced record(s) (${pendingRides} rides, ${pendingExpenses} expenses). ` +
+        'Signing out will permanently lose this data. Are you sure?'
+      );
+      if (!proceed) return;
+    } else {
+      if (!confirm('Are you sure you want to sign out?')) return;
+    }
+
     await createClient().auth.signOut();
     await db.delete();
     await db.open();

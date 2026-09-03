@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
@@ -39,19 +39,19 @@ export default function PartnerVouchersPage() {
       // Get all voucher rides for partner vehicles
       const { data: rides } = await supabase
         .from('rides')
-        .select('id, amount, payment_type, payer_name, voucher_collected')
+        .select('id, amount, payment_method, payment_status, notes')
         .in('vehicle_id', vehicleIds)
-        .eq('payment_type', 'voucher');
+        .eq('payment_method', 'Voucher');
 
       if (!rides || rides.length === 0) { setLoading(false); return; }
 
-      // Group by payer_name
+      // Group by payer
       const map: Record<string, PayerSummary> = {};
       for (const r of rides) {
-        const key = r.payer_name ?? 'Unknown Payer';
+        const key = r.notes ?? 'Unknown Payer';
         if (!map[key]) map[key] = { payerId: key, payerName: key, totalFares: 0, collected: 0, outstanding: 0 };
         map[key].totalFares += r.amount ?? 0;
-        if (r.voucher_collected) map[key].collected += r.amount ?? 0;
+        if (r.payment_status === 'Collected' || r.payment_status === 'Received') map[key].collected += r.amount ?? 0;
         else map[key].outstanding += r.amount ?? 0;
       }
 

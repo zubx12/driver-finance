@@ -50,6 +50,8 @@ export function CorrectionRequestModal({
     <div
       className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 backdrop-blur-sm"
       onClick={onClose}
+      role="dialog"
+      aria-modal="true"
     >
       <div
         className="bg-white dark:bg-zinc-900 w-full max-w-lg rounded-t-2xl p-6 space-y-4 shadow-2xl"

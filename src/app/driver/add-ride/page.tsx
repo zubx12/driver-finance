@@ -9,9 +9,11 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ArrowLeft, CheckCircle2, Camera, Image as ImageIcon, Car, Lock, Building } from 'lucide-react';
 import Link from 'next/link';
+import { useDriver } from '@/contexts/DriverContext';
 
 export default function AddRidePage() {
   const router = useRouter();
+  const { vehicleMake, vehicleModel, vehiclePlate } = useDriver();
   
   const [revenueType, setRevenueType] = useState<'CASH' | 'VOUCHER'>('CASH');
   const [revenue, setRevenue] = useState('');
@@ -55,7 +57,7 @@ export default function AddRidePage() {
     setIsSubmitting(true);
     
     const now = Date.now();
-    const today = new Date().toISOString().split('T')[0];
+    const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Riyadh' });
     const time = new Date().toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit' });
     
     const rideId = crypto.randomUUID();
@@ -99,7 +101,7 @@ export default function AddRidePage() {
             </div>
             <div className="flex-1">
               <p className="text-xs text-zinc-500 uppercase tracking-wider font-semibold">Active Vehicle</p>
-              <p className="font-medium text-sm leading-none mt-1">Toyota Camry • ABC 1234</p>
+              <p className="font-medium text-sm leading-none mt-1">{vehicleMake} {vehicleModel} • {vehiclePlate}</p>
             </div>
             <div className="px-2">
               <Lock className="h-4 w-4 text-zinc-400" />

@@ -23,6 +23,39 @@ export default function VehicleSetupPage() {
       .then(d => { if (Array.isArray(d)) setPartners(d); });
   }, [vehicleId]);
 
+  // Load existing splits for this vehicle
+  useEffect(() => {
+    async function loadExistingSplits() {
+      const supabase = createClient();
+      const { data } = await supabase
+        .from('vehicle_partners')
+        .select('id, partner_id, percentage')
+        .eq('vehicle_id', vehicleId)
+        .is('effective_to', null);
+      
+      if (data && data.length > 0) {
+        setSplits(data.map(d => ({ id: d.id, partnerId: d.partner_id, pct: String(d.percentage) })));
+      }
+
+      // Also load existing driver compensation
+      const { data: comp } = await supabase
+        .from('driver_compensation')
+        .select('compensation_type, commission_percentage, fixed_salary_amount, bonus_rate')
+        .eq('vehicle_id', vehicleId)
+        .is('effective_to', null)
+        .maybeSingle();
+      
+      if (comp) {
+        setDriverPayType(comp.compensation_type as 'commission' | 'fixed_salary');
+        if (comp.commission_percentage != null) setDriverCommission(String(comp.commission_percentage));
+        if (comp.fixed_salary_amount != null) setDriverSalary(String(comp.fixed_salary_amount));
+        if (comp.bonus_rate != null) setDriverBonus(String(comp.bonus_rate));
+      }
+    }
+    loadExistingSplits();
+  }, [vehicleId]);
+
+
   const [driverPayType, setDriverPayType] = useState<'commission' | 'fixed_salary'>('commission');
   const [driverCommission, setDriverCommission] = useState('35.0');
   const [driverSalary, setDriverSalary] = useState('4000.00');

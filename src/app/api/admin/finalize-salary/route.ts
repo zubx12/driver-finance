@@ -1,8 +1,30 @@
-﻿import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { createServerClient } from '@supabase/ssr';
+import { cookies } from 'next/headers';
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   try {
+    const cookieStore = await cookies();
+    const supabaseAuth = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          getAll: () => cookieStore.getAll(),
+          setAll: (cookiesToSet) => {
+            cookiesToSet.forEach(({ name, value, options }) =>
+              cookieStore.set(name, value, options)
+            );
+          },
+        },
+      }
+    );
+    const { data: { user } } = await supabaseAuth.auth.getUser();
+    if (!user || user.user_metadata?.role !== 'admin') {
+      return NextResponse.json({ message: 'Unauthorized' }, { status: 403 });
+    }
+
     const body = await request.json();
     const { calcId } = body;
 
@@ -33,27 +55,19 @@ export async function POST(request: Request) {
 
     if (sharesErr) throw sharesErr;
 
-    // 3. For each share, get the partner_id and generate settlements
+    // 3. For each share, generate settlements
+    // The shares table has partner_id directly (from initial schema)
     if (shares && shares.length > 0) {
       for (const share of shares) {
-        if (!share.vehicle_partner_id) continue;
-        
-        // Get partner_id from vehicle_partners
-        const { data: vp } = await supabase
-          .from('vehicle_partners')
-          .select('partner_id')
-          .eq('id', share.vehicle_partner_id)
-          .single();
+        if (!share.partner_id) continue;
 
-        if (vp && vp.partner_id) {
-          // Insert settlement
-          await supabase.from('settlements').insert({
-            share_id: share.id,
-            partner_id: vp.partner_id,
-            amount: share.share_amount,
-            status: 'pending'
-          });
-        }
+        // Insert settlement using partner_id directly from the share
+        await supabase.from('settlements').insert({
+          share_id: share.id,
+          partner_id: share.partner_id,
+          amount: share.share_amount,
+          status: 'pending'
+        });
       }
     }
 

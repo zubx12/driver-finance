@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { useDriver } from '@/contexts/DriverContext';
 import { db } from '@/lib/db/dexie';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -13,16 +14,14 @@ const VEHICLE_CATEGORIES = ['Fuel', 'Parking', 'Toll', 'Car Wash', 'Maintenance'
 const DRIVER_CATEGORIES = ['Driver Meal', 'Driver Travel', 'Driver Accommodation', 'Driver Allowance', 'Other Driver Expense'];
 const GENERAL_CATEGORIES = ['Other'];
 
-const RECEIPT_REQUIRED_CATEGORIES = ['Fuel', 'Maintenance', 'Repair', 'Spare Parts', 'Driver Accommodation'];
-const RECEIPT_REQUIRED_THRESHOLD = 100;
-
 export default function AddExpensePage() {
   const router = useRouter();
+  const { vehicleId: driverVehicleId } = useDriver();
   
   const [step, setStep] = useState<1 | 2>(1); // 1: Form, 2: Review
 
   // Form State
-  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+  const [date, setDate] = useState(new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Riyadh' }));
   const [time, setTime] = useState(new Date().toTimeString().substring(0, 5));
   const [amount, setAmount] = useState('');
   const [category, setCategory] = useState('Fuel');
@@ -36,7 +35,7 @@ export default function AddExpensePage() {
 
   // Derived State
   const amountNum = Number(amount) || 0;
-  const isReceiptRequired = amountNum >= RECEIPT_REQUIRED_THRESHOLD || RECEIPT_REQUIRED_CATEGORIES.includes(category);
+  const isReceiptRequired = true; // AGENTS.md Rule #3: receipt is ALWAYS mandatory
   const isDescriptionRequired = category.startsWith('Other');
   
   const isValid = () => {
@@ -51,11 +50,19 @@ export default function AddExpensePage() {
   const handleImageCapture = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setImagePreview(reader.result as string);
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const MAX_WIDTH = 1200;
+        const scale = Math.min(1, MAX_WIDTH / img.width);
+        canvas.width = img.width * scale;
+        canvas.height = img.height * scale;
+        const ctx = canvas.getContext('2d')!;
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        const compressed = canvas.toDataURL('image/jpeg', 0.8);
+        setImagePreview(compressed);
       };
-      reader.readAsDataURL(file);
+      img.src = URL.createObjectURL(file);
     }
   };
 
@@ -76,7 +83,7 @@ export default function AddExpensePage() {
       amount: amountNum,
       category,
       allocation,
-      vehicleId: allocation === 'Current Vehicle' ? 'VEH-001' : undefined, // Hardcoded active vehicle for demo
+      vehicleId: allocation === 'Current Vehicle' ? (driverVehicleId ?? undefined) : undefined,
       paymentSource,
       description: description.trim() || undefined,
       receiptImageBase64: imagePreview || undefined,
@@ -240,11 +247,7 @@ export default function AddExpensePage() {
               <div className="space-y-2">
                 <Label className="text-zinc-500 text-xs flex justify-between items-center">
                   Receipt Photo
-                  {isReceiptRequired ? (
-                    <span className="text-xs font-semibold text-rose-500 uppercase tracking-wider bg-rose-50 dark:bg-rose-500/10 px-2 py-1 rounded">Required *</span>
-                  ) : (
-                    <span className="text-xs font-medium text-zinc-400 uppercase tracking-wider">Optional</span>
-                  )}
+                  <span className="text-xs font-semibold text-rose-500 uppercase tracking-wider bg-rose-50 dark:bg-rose-500/10 px-2 py-1 rounded">Required *</span>
                 </Label>
                 
                 <input 

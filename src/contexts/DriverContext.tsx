@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { createClient } from '@/lib/supabase/client';
@@ -85,18 +85,17 @@ export function DriverProvider({ children }: { children: ReactNode }) {
     let fixedSalary: number | null = null;
     let bonusRate = 0;
 
-    if (driver.vehicle_id) {
-      const { data: comp } = await supabase
-        .from('driver_compensation')
-        .select('pay_type, commission_rate, fixed_salary, bonus_rate')
-        .eq('vehicle_id', driver.vehicle_id)
-        .single();
-      if (comp) {
-        payType = comp.pay_type;
-        commissionRate = comp.commission_rate;
-        fixedSalary = comp.fixed_salary;
-        bonusRate = comp.bonus_rate ?? 0;
-      }
+    const { data: comp } = await supabase
+      .from('driver_compensation')
+      .select('compensation_type, commission_percentage, fixed_salary_amount, bonus_rate')
+      .or(driver.vehicle_id ? `vehicle_id.eq.${driver.vehicle_id},driver_id.eq.${driver.id}` : `driver_id.eq.${driver.id}`)
+      .maybeSingle();
+
+    if (comp) {
+      payType = comp.compensation_type;
+      commissionRate = comp.commission_percentage;
+      fixedSalary = comp.fixed_salary_amount;
+      bonusRate = comp.bonus_rate ?? 0;
     }
 
     setProfile({

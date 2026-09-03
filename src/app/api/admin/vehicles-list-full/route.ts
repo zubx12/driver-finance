@@ -23,6 +23,7 @@ export async function GET() {
   const { data, error } = await admin
     .from('vehicles')
     .select('id, make, model, year, plate_number, status, drivers(id, name, username), vehicle_partners(id, percentage, partners(name))')
+    .is('vehicle_partners.effective_to', null)
     .order('make');
 
   if (error) return NextResponse.json({ message: error.message }, { status: 500 });

@@ -3,20 +3,22 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Calendar, Play, FileText, CheckCircle2, Eye, AlertCircle, PencilLine, Save, X } from 'lucide-react';
+import { Calendar, Play, FileText, CheckCircle2, Eye, AlertCircle, PencilLine, Save, X, Download } from 'lucide-react';
 import { Drawer, DrawerClose, DrawerContent, DrawerDescription, DrawerFooter, DrawerHeader, DrawerTitle, DrawerTrigger } from '@/components/ui/drawer';
 import { Input } from '@/components/ui/input';
 import { createClient } from '@/lib/supabase/client';
 
 interface Share { partnerName: string; pct: number; amount: number; }
 interface Calc {
-  id: string; vehicleLabel: string; period: string;
+  id: string; vehicleId: string; vehicleLabel: string; period: string;
   totalRevenue: number; totalExpenses: number; companyExpenses: number;
   netRevenue: number; status: 'draft' | 'finalized';
   adminNotes: string; shares: Share[];
 }
 
 function recalcShares(calc: Calc): Share[] {
+  // Note: This is a client-side preview only. It does not include driver pay deductions.
+  // The actual share amounts are computed by the backend run-salary API.
   const net = calc.totalRevenue - calc.totalExpenses - calc.companyExpenses;
   return calc.shares.map(s => ({ ...s, amount: parseFloat(((net * s.pct) / 100).toFixed(2)) }));
 }
@@ -37,35 +39,41 @@ export default function AdminSalaryPage() {
 
   const loadCalcs = useCallback(async () => {
     setLoading(true);
-    const supabase = createClient();
-    const { data, error: err } = await supabase
-      .from('salary_calculations')
-      .select(`id, vehicle_id, total_revenue, total_expenses, company_expenses, net_revenue, status, period_start, admin_notes,
-               vehicles(make, model, plate_number),
-               salary_calculation_shares(ownership_percentage, share_amount, vehicle_partners(partners(name)))`)
-      .order('created_at', { ascending: false })
-      .limit(20);
+    try {
+      const supabase = createClient();
+      const { data, error: err } = await supabase
+        .from('salary_calculations')
+        .select(`id, vehicle_id, total_revenue, total_expenses, company_expenses, net_revenue, status, period_start, admin_notes,
+                 vehicles(make, model, plate_number),
+                 salary_calculation_shares(ownership_percentage, share_amount, vehicle_partners(partners(name)))`)
+        .order('created_at', { ascending: false })
+        .limit(20);
 
-    if (err) { setError(err.message); setLoading(false); return; }
+      if (err) { setError(err.message); setLoading(false); return; }
 
-    const mapped: Calc[] = (data ?? []).map((c: any) => ({
-      id: c.id,
-      vehicleLabel: c.vehicles ? `${c.vehicles.make} ${c.vehicles.model} (${c.vehicles.plate_number})` : 'Unknown',
-      period: new Date(c.period_start).toLocaleString('en-US', { month: 'long', year: 'numeric' }),
-      totalRevenue: c.total_revenue,
-      totalExpenses: c.total_expenses,
-      companyExpenses: c.company_expenses ?? 0,
-      netRevenue: c.net_revenue,
-      status: c.status,
-      adminNotes: c.admin_notes ?? '',
-      shares: (c.salary_calculation_shares ?? []).map((s: any) => ({
-        partnerName: s.vehicle_partners?.partners?.name ?? 'Unknown',
-        pct: s.ownership_percentage,
-        amount: s.share_amount,
-      })),
-    }));
-    setCalcs(mapped);
-    setLoading(false);
+      const mapped: Calc[] = (data ?? []).map((c: any) => ({
+        id: c.id,
+        vehicleId: c.vehicle_id,
+        vehicleLabel: c.vehicles ? `${c.vehicles.make} ${c.vehicles.model} (${c.vehicles.plate_number})` : 'Unknown',
+        period: new Date(c.period_start).toLocaleString('en-US', { month: 'long', year: 'numeric' }),
+        totalRevenue: c.total_revenue,
+        totalExpenses: c.total_expenses,
+        companyExpenses: c.company_expenses ?? 0,
+        netRevenue: c.net_revenue,
+        status: c.status,
+        adminNotes: c.admin_notes ?? '',
+        shares: (c.salary_calculation_shares ?? []).map((s: any) => ({
+          partnerName: s.vehicle_partners?.partners?.name ?? 'Unknown',
+          pct: s.ownership_percentage,
+          amount: s.share_amount,
+        })),
+      }));
+      setCalcs(mapped);
+    } catch (e: any) {
+      setError(e.message || 'Failed to load calculations');
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   useEffect(() => { loadCalcs(); }, [loadCalcs]);
@@ -113,13 +121,13 @@ export default function AdminSalaryPage() {
     const newShares = recalcShares(updatedCalc);
     // Delete and re-insert shares with updated amounts
     await supabase.from('salary_calculation_shares').delete().eq('calculation_id', calc.id);
-    // Re-fetch partner splits to get vehicle_partner_id
-    const { data: splits } = await supabase.from('vehicle_partners').select('id, partner_id, percentage, partners(name)').eq('vehicle_id', calc.id).is('effective_to', null);
+    // Re-fetch partner splits to get partner_id
+    const { data: splits } = await supabase.from('vehicle_partners').select('id, partner_id, percentage, partners(name)').eq('vehicle_id', calc.vehicleId).is('effective_to', null);
     if (splits && splits.length > 0) {
       await supabase.from('salary_calculation_shares').insert(
         splits.map((s: any) => ({
           calculation_id: calc.id,
-          vehicle_partner_id: s.id,
+          partner_id: s.partner_id,
           ownership_percentage: s.percentage,
           share_amount: parseFloat(((newNet * s.percentage) / 100).toFixed(2)),
         }))
@@ -154,9 +162,14 @@ export default function AdminSalaryPage() {
 
   return (
     <div className="space-y-8 max-w-7xl mx-auto">
-      <header>
-        <h1 className="text-3xl font-bold tracking-tight">Salary & Payout Runs</h1>
-        <p className="text-zinc-500 dark:text-zinc-400">Generate drafts, add adjustments, then finalize partner payouts.</p>
+      <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Salary & Payout Runs</h1>
+          <p className="text-zinc-500 dark:text-zinc-400">Generate drafts, add adjustments, then finalize partner payouts.</p>
+        </div>
+        <Button variant="outline" onClick={() => window.open('/api/admin/export-salary', '_blank')} className="gap-2 self-start sm:self-auto">
+          <Download className="h-4 w-4" />Export CSV
+        </Button>
       </header>
 
       {/* Generate trigger */}

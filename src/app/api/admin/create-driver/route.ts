@@ -1,4 +1,4 @@
-﻿import { createClient } from '@supabase/supabase-js';
+import { createClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
@@ -33,6 +33,13 @@ export async function POST(request: NextRequest) {
       { message: 'name, username, and password are required' },
       { status: 400 }
     );
+  }
+
+  if (password.length < 8) {
+    return NextResponse.json({ message: 'Password must be at least 8 characters' }, { status: 400 });
+  }
+  if (!/\d/.test(password)) {
+    return NextResponse.json({ message: 'Password must contain at least one number' }, { status: 400 });
   }
 
   const cleanUsername = username.trim().toLowerCase().replace(/\s+/g, '_');

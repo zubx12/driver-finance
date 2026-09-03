@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useMemo } from 'react';
 import Link from 'next/link';
+import { createClient } from '@/lib/supabase/client';
 import { partnerService, CalculatedFinancials, MoMFinancials } from '@/services/partner-service';
 import { Partner, PartnerVehicle, OwnershipArrangement } from '@/types/partner';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -56,14 +57,18 @@ export default function PartnerDashboard() {
   
   const [momFinancials, setMomFinancials] = useState<MoMFinancials | null>(null);
   const [vehicleFinancials, setVehicleFinancials] = useState<Record<string, CalculatedFinancials>>({});
+  const [payouts, setPayouts] = useState<any[]>([]);
   
-  const [period, setPeriod] = useState('August 2026');
+  const [period, setPeriod] = useState(() => {
+    const now = new Date();
+    return now.toLocaleString('en-US', { month: 'long', year: 'numeric' });
+  });
   const [isLoading, setIsLoading] = useState(true);
   const [drawerOpen, setDrawerOpen] = useState(false);
 
   // Derive vehicleId list once vehicles are loaded for the realtime hook
   const vehicleIds = useMemo(() => vehicles.map(v => v.id), [vehicles]);
-  const { vehicleFinancials: liveFinancials, salaryNotifications, isConnected, dismissSalaryNotification } =
+  const { salaryNotifications, isConnected, dismissSalaryNotification } =
     useRealtimePartner(vehicleIds);
 
   useEffect(() => {
@@ -95,6 +100,14 @@ export default function PartnerDashboard() {
           vFinRecord[vehicle.id] = vFin;
         }
         setVehicleFinancials(vFinRecord);
+
+        const supabase = createClient();
+        const { data: payoutData } = await supabase
+          .from('partner_settlement_view')
+          .select('id, amount, status, paid_at, period_start, vehicle_name, plate_number')
+          .order('period_start', { ascending: false })
+          .limit(6);
+        setPayouts(payoutData || []);
 
       } catch (err) {
         console.error("Failed to load partner dashboard:", err);
@@ -151,7 +164,11 @@ export default function PartnerDashboard() {
     };
   });
 
-  const periods = ['August 2026', 'July 2026', 'June 2026'];
+  const periods = Array.from({ length: 6 }, (_, i) => {
+    const d = new Date();
+    d.setMonth(d.getMonth() - i);
+    return d.toLocaleString('en-US', { month: 'long', year: 'numeric' });
+  });
 
   return (
     <>
@@ -437,24 +454,28 @@ export default function PartnerDashboard() {
         
         {/* Mobile List View (Hidden on md+) */}
         <div className="md:hidden space-y-3">
-          {['July 2026', 'June 2026', 'May 2026'].map((period, i) => (
-            <Card key={period} className="border border-zinc-200/80 dark:border-zinc-800/80 bg-white dark:bg-zinc-900 rounded-2xl shadow-sm">
-              <CardContent className="p-4 flex justify-between items-center">
-                <div>
-                  <div className="font-bold text-zinc-900 dark:text-zinc-100 text-sm mb-1">{period}</div>
-                  <div className="text-xs text-zinc-500">Net: SAR {i === 0 ? '14,500' : i === 1 ? '13,200' : '15,100'}</div>
-                </div>
-                <div className="text-right">
-                  <div className="font-bold text-indigo-600 dark:text-indigo-400 mb-1">
-                    SAR {i === 0 ? '4,712.50' : i === 1 ? '4,290.00' : '4,907.50'}
+          {payouts.length === 0 ? (
+            <div className="text-center py-6 text-zinc-500 text-sm">No payouts yet.</div>
+          ) : (
+            payouts.map((p: any) => (
+              <Card key={p.id} className="border border-zinc-200/80 dark:border-zinc-800/80 bg-white dark:bg-zinc-900 rounded-2xl shadow-sm">
+                <CardContent className="p-4 flex justify-between items-center">
+                  <div>
+                    <div className="font-bold text-zinc-900 dark:text-zinc-100 text-sm mb-1">{new Date(p.period_start).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}</div>
+                    <div className="text-xs text-zinc-500">{p.vehicle_name} ({p.plate_number})</div>
                   </div>
-                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-100 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400">
-                    Paid
-                  </span>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+                  <div className="text-right">
+                    <div className="font-bold text-indigo-600 dark:text-indigo-400 mb-1">
+                      SAR {p.amount?.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                    </div>
+                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold ${p.status === 'Paid' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400' : 'bg-amber-100 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400'}`}>
+                      {p.status}
+                    </span>
+                  </div>
+                </CardContent>
+              </Card>
+            ))
+          )}
         </div>
 
         {/* Desktop Table View (Hidden on mobile) */}
@@ -463,42 +484,28 @@ export default function PartnerDashboard() {
             <thead className="bg-zinc-50 dark:bg-zinc-900/50 border-b border-zinc-100 dark:border-zinc-800 text-zinc-500 text-xs uppercase tracking-wider">
               <tr>
                 <th className="px-6 py-4 font-semibold">Period</th>
-                <th className="px-6 py-4 font-semibold text-right">Net Amount</th>
-                <th className="px-6 py-4 font-semibold text-right">Your Share</th>
+                <th className="px-6 py-4 font-semibold">Vehicle</th>
+                <th className="px-6 py-4 font-semibold text-right">Amount</th>
                 <th className="px-6 py-4 font-semibold text-center">Status</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
-              <tr className="hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors">
-                <td className="px-6 py-4 whitespace-nowrap font-medium text-zinc-900 dark:text-zinc-100">July 2026</td>
-                <td className="px-6 py-4 whitespace-nowrap text-right text-zinc-900 dark:text-zinc-100 font-medium">SAR 14,500.00</td>
-                <td className="px-6 py-4 whitespace-nowrap text-right font-bold text-indigo-600 dark:text-indigo-400">SAR 4,712.50</td>
-                <td className="px-6 py-4 whitespace-nowrap text-center">
-                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400">
-                    Paid
-                  </span>
-                </td>
-              </tr>
-              <tr className="hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors">
-                <td className="px-6 py-4 whitespace-nowrap font-medium text-zinc-900 dark:text-zinc-100">June 2026</td>
-                <td className="px-6 py-4 whitespace-nowrap text-right text-zinc-900 dark:text-zinc-100 font-medium">SAR 13,200.00</td>
-                <td className="px-6 py-4 whitespace-nowrap text-right font-bold text-indigo-600 dark:text-indigo-400">SAR 4,290.00</td>
-                <td className="px-6 py-4 whitespace-nowrap text-center">
-                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400">
-                    Paid
-                  </span>
-                </td>
-              </tr>
-              <tr className="hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors">
-                <td className="px-6 py-4 whitespace-nowrap font-medium text-zinc-900 dark:text-zinc-100">May 2026</td>
-                <td className="px-6 py-4 whitespace-nowrap text-right text-zinc-900 dark:text-zinc-100 font-medium">SAR 15,100.00</td>
-                <td className="px-6 py-4 whitespace-nowrap text-right font-bold text-indigo-600 dark:text-indigo-400">SAR 4,907.50</td>
-                <td className="px-6 py-4 whitespace-nowrap text-center">
-                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400">
-                    Paid
-                  </span>
-                </td>
-              </tr>
+              {payouts.length === 0 ? (
+                <tr><td colSpan={4} className="px-6 py-8 text-center text-zinc-500">No payouts yet.</td></tr>
+              ) : (
+                payouts.map((p: any) => (
+                  <tr key={p.id} className="hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors">
+                    <td className="px-6 py-4 whitespace-nowrap font-medium text-zinc-900 dark:text-zinc-100">{new Date(p.period_start).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-zinc-900 dark:text-zinc-100">{p.vehicle_name} ({p.plate_number})</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-right font-bold text-indigo-600 dark:text-indigo-400">SAR {p.amount?.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-center">
+                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${p.status === 'Paid' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400' : 'bg-amber-100 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400'}`}>
+                        {p.status}
+                      </span>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </Card>

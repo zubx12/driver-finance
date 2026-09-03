@@ -39,7 +39,24 @@ export default function FinancialPeriodDetailsPage() {
       setOwnerships(ownRecord);
 
       // Get portfolio totals
-      const f = await partnerService.getCalculatedFinancials(period);
+      let f: CalculatedFinancials = { totalRevenue: 0, cashRevenue: 0, voucherRevenue: 0, totalExpenses: 0, cashExpenses: 0, netRevenue: 0, voucherCollected: 0, voucherOutstanding: 0, cashHandedOver: 0, driverCashOutstanding: 0 };
+      for (const vehicle of v) {
+        try {
+          const vFin = await partnerService.getCalculatedFinancials(period, vehicle.id);
+          f.totalRevenue += vFin.totalRevenue;
+          f.cashRevenue += vFin.cashRevenue;
+          f.voucherRevenue += vFin.voucherRevenue;
+          f.totalExpenses += vFin.totalExpenses;
+          f.cashExpenses += vFin.cashExpenses;
+          f.netRevenue += vFin.netRevenue;
+          f.voucherCollected += vFin.voucherCollected;
+          f.voucherOutstanding += vFin.voucherOutstanding;
+          f.cashHandedOver += vFin.cashHandedOver;
+          f.driverCashOutstanding += vFin.driverCashOutstanding;
+        } catch (e) {
+          // Skip vehicles with no data
+        }
+      }
       setTotalFinancials(f);
 
       // Get per-vehicle financials

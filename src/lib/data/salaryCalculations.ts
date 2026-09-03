@@ -10,6 +10,7 @@ export interface DbSalaryCalculation {
   total_revenue: number;
   total_expenses: number;
   net_revenue: number;
+  driver_pay_total: number;
   status: 'draft' | 'finalized';
   created_at: string;
   finalized_at: string | null;
@@ -24,8 +25,22 @@ export interface DbSalaryCalculationShare {
   created_at: string;
 }
 
+export interface DbDriverPayCalculation {
+  id: string;
+  calculation_id: string;
+  driver_id: string;
+  driver_compensation_id: string | null;
+  compensation_type: 'commission' | 'fixed_salary';
+  commission_percentage: number | null;
+  fixed_salary_amount: number | null;
+  bonus_rate: number;
+  driver_pay_amount: number;
+  created_at: string;
+}
+
 export interface SalaryCalculationWithShares extends DbSalaryCalculation {
   shares: DbSalaryCalculationShare[];
+  driverPay?: DbDriverPayCalculation[];
 }
 
 // ─── Queries ──────────────────────────────────────────────────────────────────
@@ -37,7 +52,7 @@ export async function getCalculationsForVehicle(
   const supabase = createClient();
   const { data, error } = await supabase
     .from('salary_calculations')
-    .select('*, salary_calculation_shares(*)')
+    .select('*, salary_calculation_shares(*), driver_pay_calculations(*)')
     .eq('vehicle_id', vehicleId)
     .order('period_start', { ascending: false });
 
@@ -45,6 +60,7 @@ export async function getCalculationsForVehicle(
   return (data ?? []).map(row => ({
     ...row,
     shares: row.salary_calculation_shares ?? [],
+    driverPay: row.driver_pay_calculations ?? [],
   }));
 }
 
@@ -53,13 +69,14 @@ export async function getAllSalaryCalculations(): Promise<SalaryCalculationWithS
   const supabase = createClient();
   const { data, error } = await supabase
     .from('salary_calculations')
-    .select('*, salary_calculation_shares(*)')
+    .select('*, salary_calculation_shares(*), driver_pay_calculations(*)')
     .order('period_start', { ascending: false });
 
   if (error) throw new Error(`getAllSalaryCalculations: ${error.message}`);
   return (data ?? []).map(row => ({
     ...row,
     shares: row.salary_calculation_shares ?? [],
+    driverPay: row.driver_pay_calculations ?? [],
   }));
 }
 
@@ -114,3 +131,30 @@ export async function finalizeCalculation(calculationId: string): Promise<void> 
 
   if (error) throw new Error(`finalizeCalculation: ${error.message}`);
 }
+
+/** Get driver pay calculations for a specific salary calculation run. */
+export async function getDriverPayForCalculation(
+  calculationId: string
+): Promise<DbDriverPayCalculation[]> {
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from('driver_pay_calculations')
+    .select('*')
+    .eq('calculation_id', calculationId);
+
+  if (error) throw new Error(`getDriverPayForCalculation: ${error.message}`);
+  return data ?? [];
+}
+
+/** Get all driver pay calculations for the currently logged-in driver. */
+export async function getMyDriverPayCalculations(): Promise<DbDriverPayCalculation[]> {
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from('driver_pay_calculations')
+    .select('*, salary_calculations(period_start, period_end, vehicle_id, status)')
+    .order('created_at', { ascending: false });
+
+  if (error) throw new Error(`getMyDriverPayCalculations: ${error.message}`);
+  return data ?? [];
+}
+

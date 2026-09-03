@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -7,22 +7,9 @@ import { ArrowLeft, Car, Lock, ShieldAlert } from 'lucide-react';
 import { useDriver } from '@/contexts/DriverContext';
 import { createClient } from '@/lib/supabase/client';
 
-interface PartnerSplit { id: string; partner_id: string; percentage: number; partners: { name: string } | null; }
-
 export default function VehicleDetailsPage() {
   const router = useRouter();
   const { vehicleId, vehicleMake, vehicleModel, vehiclePlate, loading } = useDriver();
-  const [splits, setSplits] = useState<PartnerSplit[]>([]);
-
-  useEffect(() => {
-    if (!vehicleId) return;
-    createClient()
-      .from('vehicle_partners')
-      .select('id, partner_id, percentage, partners(name)')
-      .eq('vehicle_id', vehicleId)
-      .is('effective_to', null)
-      .then(({ data }) => { if (data) setSplits(data as any); });
-  }, [vehicleId]);
 
   if (loading) return <div className="p-8 text-center text-zinc-400 text-sm">Loading...</div>;
   if (!vehicleId) return (
@@ -61,30 +48,7 @@ export default function VehicleDetailsPage() {
           </p>
         </div>
 
-        {splits.length > 0 && (
-          <section className="space-y-3">
-            <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-wider px-2 flex justify-between">
-              Vehicle Ownership <span className="lowercase font-normal">{splits.length} Partners</span>
-            </h3>
-            <Card className="border-zinc-200 dark:border-zinc-800 shadow-sm">
-              <CardContent className="p-0 divide-y dark:divide-zinc-800">
-                {splits.map(s => (
-                  <div key={s.id} className="p-4 flex items-center justify-between">
-                    <div>
-                      <h4 className="font-semibold text-sm">{(s.partners as any)?.name ?? 'Partner'}</h4>
-                      <p className="text-xs text-zinc-500">Ownership Stake</p>
-                    </div>
-                    <span className="font-bold text-lg text-emerald-600 dark:text-emerald-400">{s.percentage}%</span>
-                  </div>
-                ))}
-                <div className="p-4 bg-zinc-50 dark:bg-zinc-900/50 flex justify-between">
-                  <span className="font-bold text-sm">Total</span>
-                  <span className="font-bold text-sm">{splits.reduce((s, r) => s + r.percentage, 0).toFixed(1)}%</span>
-                </div>
-              </CardContent>
-            </Card>
-          </section>
-        )}
+
 
         <button className="w-full flex items-center justify-center gap-2 p-4 text-sm font-medium text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-xl transition-colors border border-transparent hover:border-rose-200">
           <ShieldAlert className="h-4 w-4" />Report Incorrect Information

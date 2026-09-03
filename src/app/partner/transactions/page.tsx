@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
@@ -45,7 +45,7 @@ export default function PartnerTransactionsPage() {
       const [ridesRes, expensesRes] = await Promise.all([
         supabase
           .from('rides')
-          .select('id, ride_date, amount, payment_type, drivers(name), vehicles(make, model)')
+          .select('id, ride_date, amount, payment_method, drivers(name), vehicles(make, model)')
           .in('vehicle_id', vehicleIds)
           .order('ride_date', { ascending: false })
           .limit(200),
@@ -61,10 +61,10 @@ export default function PartnerTransactionsPage() {
         id: r.id, type: 'ride',
         date: r.ride_date,
         amount: r.amount,
-        description: `${r.payment_type ?? 'Cash'} Ride`,
+        description: `${r.payment_method ?? 'Cash'} Ride`,
         driverName: r.drivers?.name ?? 'Unknown Driver',
         vehicleName: r.vehicles ? `${r.vehicles.make} ${r.vehicles.model}` : '',
-        paymentMethod: r.payment_type,
+        paymentMethod: r.payment_method,
       }));
 
       const expenses: Tx[] = (expensesRes.data ?? []).map((e: any) => ({

@@ -33,7 +33,11 @@ export default function PartnerFinancialsPage() {
         if (o) ownRecord[vehicle.id] = o;
       }
 
-      const periodsToLoad = ['August 2026', 'July 2026'];
+      const periodsToLoad = Array.from({ length: 6 }, (_, i) => {
+        const d = new Date();
+        d.setMonth(d.getMonth() - i);
+        return d.toLocaleString('en-US', { month: 'long', year: 'numeric' });
+      });
       const summaries: PeriodSummary[] = [];
       
       let yr = 0;
@@ -42,8 +46,25 @@ export default function PartnerFinancialsPage() {
       let ys = 0;
 
       for (const period of periodsToLoad) {
-        // Overall financials for the period
-        const periodFin = await partnerService.getCalculatedFinancials(period);
+        // Aggregate financials across all partner vehicles
+        let periodFin: CalculatedFinancials = { totalRevenue: 0, cashRevenue: 0, voucherRevenue: 0, totalExpenses: 0, cashExpenses: 0, netRevenue: 0, voucherCollected: 0, voucherOutstanding: 0, cashHandedOver: 0, driverCashOutstanding: 0 };
+        for (const vehicle of vehicles) {
+          try {
+            const vFin = await partnerService.getCalculatedFinancials(period, vehicle.id);
+            periodFin.totalRevenue += vFin.totalRevenue;
+            periodFin.cashRevenue += vFin.cashRevenue;
+            periodFin.voucherRevenue += vFin.voucherRevenue;
+            periodFin.totalExpenses += vFin.totalExpenses;
+            periodFin.cashExpenses += vFin.cashExpenses;
+            periodFin.netRevenue += vFin.netRevenue;
+            periodFin.voucherCollected += vFin.voucherCollected;
+            periodFin.voucherOutstanding += vFin.voucherOutstanding;
+            periodFin.cashHandedOver += vFin.cashHandedOver;
+            periodFin.driverCashOutstanding += vFin.driverCashOutstanding;
+          } catch (e) {
+            // Skip vehicles with no data
+          }
+        }
         
         // Calculate my share by looking at each vehicle's financials
         let myTotalShare = 0;

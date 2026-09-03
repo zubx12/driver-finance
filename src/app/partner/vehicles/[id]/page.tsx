@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
@@ -21,7 +21,6 @@ export default function VehicleDetailsPage() {
   const [partner, setPartner] = useState<Partner | null>(null);
   const [vehicle, setVehicle] = useState<PartnerVehicle | null>(null);
   const [myOwnership, setMyOwnership] = useState<OwnershipArrangement | null>(null);
-  const [allPartners, setAllPartners] = useState<OwnershipArrangement[]>([]);
   const [financials, setFinancials] = useState<CalculatedFinancials | null>(null);
   const [expenses, setExpenses] = useState<ExpenseWithDriver[]>([]);
   
@@ -29,27 +28,7 @@ export default function VehicleDetailsPage() {
   const [selectedReceipt, setSelectedReceipt] = useState<string | null>(null);
   const [receiptDrawerOpen, setReceiptDrawerOpen] = useState(false);
 
-  // New state for Log Cash to Driver
-  const [paymentDrawerOpen, setPaymentDrawerOpen] = useState(false);
-  const [selectedDriverId, setSelectedDriverId] = useState<string>('');
-  const [paymentAmount, setPaymentAmount] = useState<string>('');
-  const [paymentReason, setPaymentReason] = useState<string>('Cash Advance');
-  const [isSubmittingPayment, setIsSubmittingPayment] = useState(false);
 
-  const handleLogPayment = async () => {
-    if (!selectedDriverId || !paymentAmount || isNaN(Number(paymentAmount))) return;
-    setIsSubmittingPayment(true);
-    await partnerService.logCashToDriver(vehicleId, selectedDriverId, Number(paymentAmount), paymentReason);
-    
-    // Refresh financials
-    const vFin = await partnerService.getCalculatedFinancials('August 2026', vehicleId);
-    setFinancials(vFin);
-    
-    setIsSubmittingPayment(false);
-    setPaymentDrawerOpen(false);
-    setPaymentAmount('');
-    setSelectedDriverId('');
-  };
 
   useEffect(() => {
     async function loadData() {
@@ -69,8 +48,7 @@ export default function VehicleDetailsPage() {
       const o = await partnerService.getOwnership(p.id, v.id);
       setMyOwnership(o);
 
-      const partners = await partnerService.getVehiclePartners(v.id);
-      setAllPartners(partners);
+
 
       const vFin = await partnerService.getCalculatedFinancials('August 2026', v.id);
       setFinancials(vFin);
@@ -182,37 +160,29 @@ export default function VehicleDetailsPage() {
             <Card className="border-zinc-200 dark:border-zinc-800 shadow-sm rounded-2xl">
               <CardContent className="p-5 space-y-6">
                 <div className="h-4 w-full rounded-full overflow-hidden flex">
-                  {allPartners.map((p, idx) => (
-                    <div 
-                      key={p.partnerId} 
-                      className={`h-full ${p.partnerId === partner?.id ? 'bg-indigo-600' : colors[idx % colors.length]}`}
-                      style={{ width: `${p.percentage}%` }}
-                    />
-                  ))}
+                  <div 
+                    className="h-full bg-indigo-600"
+                    style={{ width: `${myOwnership?.percentage || 0}%` }}
+                  />
+                  <div 
+                    className="h-full bg-zinc-200 dark:bg-zinc-800"
+                    style={{ width: `${100 - (myOwnership?.percentage || 0)}%` }}
+                  />
                 </div>
                 <div className="space-y-4">
-                  {allPartners.map((p, idx) => {
-                    const isMe = p.partnerId === partner?.id;
-                    const partnerName = isMe ? partner?.name : `Partner ${p.partnerId.replace('PTR-', '')}`;
-                    const dotColor = isMe ? 'bg-indigo-600' : colors[idx % colors.length];
-                    const partnerShareValue = vNet * (p.percentage / 100);
-                    
-                    return (
-                      <div key={p.partnerId} className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                          <div className={`h-3 w-3 rounded-full ${dotColor}`}></div>
-                          <div className="text-sm font-medium flex items-center gap-2">
-                            {partnerName}
-                            {isMe && <span className="text-[10px] font-bold bg-indigo-50 text-indigo-700 dark:bg-indigo-900/50 dark:text-indigo-400 px-1.5 py-0.5 rounded-md">YOU</span>}
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <div className="font-bold text-sm text-zinc-900 dark:text-white">SAR {partnerShareValue.toLocaleString()}</div>
-                          <div className="text-[10px] text-zinc-500 uppercase tracking-wider">{p.percentage}% Share</div>
-                        </div>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="h-3 w-3 rounded-full bg-indigo-600"></div>
+                      <div className="text-sm font-medium flex items-center gap-2">
+                        {partner?.name}
+                        <span className="text-[10px] font-bold bg-indigo-50 text-indigo-700 dark:bg-indigo-900/50 dark:text-indigo-400 px-1.5 py-0.5 rounded-md">YOU</span>
                       </div>
-                    );
-                  })}
+                    </div>
+                    <div className="text-right">
+                      <div className="font-bold text-sm text-zinc-900 dark:text-white">SAR {myShare.toLocaleString()}</div>
+                      <div className="text-[10px] text-zinc-500 uppercase tracking-wider">{myOwnership?.percentage || 0}% Share</div>
+                    </div>
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -237,70 +207,7 @@ export default function VehicleDetailsPage() {
                   <span className="text-sm text-zinc-500">Year</span>
                   <span className="text-sm font-medium text-zinc-900 dark:text-white">{vehicle.year}</span>
                 </div>
-                <div className="p-4 bg-zinc-50 dark:bg-zinc-900/50 rounded-b-2xl">
-                  <Drawer open={paymentDrawerOpen} onOpenChange={setPaymentDrawerOpen}>
-                    <DrawerTrigger className="w-full inline-flex items-center justify-center gap-2 whitespace-nowrap text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 disabled:pointer-events-none disabled:opacity-50 bg-indigo-600 text-white shadow hover:bg-indigo-700 h-10 px-4 py-2 rounded-xl">
-                      <Banknote className="h-4 w-4" />
-                      Log Cash to Driver
-                    </DrawerTrigger>
-                    <DrawerContent className="bg-white dark:bg-zinc-950 border-zinc-200 dark:border-zinc-800">
-                      <DrawerHeader>
-                        <DrawerTitle>Log Cash Given to Driver</DrawerTitle>
-                        <DrawerDescription>Record out-of-pocket cash advances or salary payments.</DrawerDescription>
-                      </DrawerHeader>
-                      <div className="p-4 space-y-4">
-                        <div className="space-y-2">
-                          <label className="text-sm font-medium">Select Driver</label>
-                          <select 
-                            className="w-full h-10 px-3 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900"
-                            value={selectedDriverId}
-                            onChange={(e) => setSelectedDriverId(e.target.value)}
-                          >
-                            <option value="">-- Choose Driver --</option>
-                            <option value="DRV-1">Ahmed Hassan</option>
-                            <option value="DRV-2">Mohammed Ali</option>
-                            <option value="DRV-3">Omar Saeed</option>
-                          </select>
-                        </div>
-                        <div className="space-y-2">
-                          <label className="text-sm font-medium">Amount (SAR)</label>
-                          <input 
-                            type="number" 
-                            className="w-full h-10 px-3 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900" 
-                            placeholder="e.g. 500"
-                            value={paymentAmount}
-                            onChange={(e) => setPaymentAmount(e.target.value)}
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <label className="text-sm font-medium">Reason</label>
-                          <select 
-                            className="w-full h-10 px-3 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900"
-                            value={paymentReason}
-                            onChange={(e) => setPaymentReason(e.target.value)}
-                          >
-                            <option value="Cash Advance">Cash Advance</option>
-                            <option value="Salary Payment">Salary Payment</option>
-                            <option value="Expense Reimbursement">Expense Reimbursement</option>
-                            <option value="Other">Other</option>
-                          </select>
-                        </div>
-                      </div>
-                      <DrawerFooter className="flex-row gap-2">
-                        <button 
-                          onClick={handleLogPayment}
-                          disabled={isSubmittingPayment || !selectedDriverId || !paymentAmount}
-                          className="flex-1 inline-flex items-center justify-center whitespace-nowrap text-sm font-medium transition-colors bg-indigo-600 text-white shadow hover:bg-indigo-700 h-10 px-4 py-2 rounded-xl disabled:opacity-50"
-                        >
-                          {isSubmittingPayment ? 'Saving...' : 'Submit Payment'}
-                        </button>
-                        <DrawerClose className="flex-1 inline-flex items-center justify-center whitespace-nowrap text-sm font-medium transition-colors border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 shadow-sm hover:bg-zinc-100 dark:hover:bg-zinc-800 h-10 px-4 py-2 rounded-xl">
-                          Cancel
-                        </DrawerClose>
-                      </DrawerFooter>
-                    </DrawerContent>
-                  </Drawer>
-                </div>
+
               </CardContent>
             </Card>
           </section>
