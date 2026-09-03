@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import { hydrateFromServer } from '@/lib/data/hydrateFromServer';
 
 interface DriverProfile {
   driverId: string;
@@ -112,6 +113,14 @@ export function DriverProvider({ children }: { children: ReactNode }) {
       fixedSalary,
       bonusRate,
     });
+
+    // Hydrate Dexie from Supabase if this is a fresh login (empty IndexedDB)
+    try {
+      await hydrateFromServer(driver.id);
+    } catch (err) {
+      console.warn('[Hydrate] Failed to pull server data into Dexie:', err);
+    }
+
     setLoading(false);
   };
 

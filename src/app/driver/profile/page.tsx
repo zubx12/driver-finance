@@ -7,7 +7,7 @@ import { createClient } from '@/lib/supabase/client';
 import { db } from '@/lib/db/dexie';
 
 export default function DriverProfilePage() {
-  const { driverName, username, status, vehicleMake, vehicleModel, vehiclePlate, vehicleId, payType, commissionRate, fixedSalary, bonusRate, loading } = useDriver();
+  const { driverId, driverName, username, status, vehicleMake, vehicleModel, vehiclePlate, vehicleId, payType, commissionRate, fixedSalary, bonusRate, loading } = useDriver();
 
   const handleLogout = async () => {
     // Check for unsynced data before allowing logout
@@ -16,11 +16,43 @@ export default function DriverProfilePage() {
     const totalPending = pendingRides + pendingExpenses;
 
     if (totalPending > 0) {
-      const proceed = confirm(
-        `You have ${totalPending} unsynced record(s) (${pendingRides} rides, ${pendingExpenses} expenses). ` +
-        'Signing out will permanently lose this data. Are you sure?'
-      );
-      if (!proceed) return;
+      if (navigator.onLine) {
+        // Attempt to sync everything before logout
+        const proceed = confirm(
+          `You have ${totalPending} unsynced record(s). ` +
+          'We will try to sync them now before signing out. Continue?'
+        );
+        if (!proceed) return;
+
+        try {
+          // Dynamic import to avoid circular deps
+          const { syncAll } = await import('@/lib/data/syncQueue');
+          const result = await syncAll(driverId, vehicleId ?? '');
+          const synced = result.ridesSucceeded + result.expensesSucceeded;
+          const failed = result.ridesFailed + result.expensesFailed;
+
+          if (failed > 0) {
+            const forceLogout = confirm(
+              `Synced ${synced} record(s) successfully, but ${failed} failed to sync. ` +
+              'Signing out now will lose the failed records. Continue anyway?'
+            );
+            if (!forceLogout) return;
+          }
+        } catch (err) {
+          const forceLogout = confirm(
+            'Failed to sync data. Signing out now may lose unsynced records. Continue anyway?'
+          );
+          if (!forceLogout) return;
+        }
+      } else {
+        // Offline with pending data — strong warning
+        const proceed = confirm(
+          `⚠️ You are OFFLINE with ${totalPending} unsynced record(s). ` +
+          'Signing out will PERMANENTLY LOSE this data. ' +
+          'Please connect to the internet first, or continue at your own risk.'
+        );
+        if (!proceed) return;
+      }
     } else {
       if (!confirm('Are you sure you want to sign out?')) return;
     }
