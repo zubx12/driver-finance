@@ -24,7 +24,7 @@ UPDATE public.rides
 
 -- 2. Create payers table for voucher organizations
 CREATE TABLE IF NOT EXISTS public.payers (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name TEXT NOT NULL,
   type TEXT NOT NULL DEFAULT 'Organization' CHECK (type IN ('Organization', 'Individual')),
   contact_info TEXT,
