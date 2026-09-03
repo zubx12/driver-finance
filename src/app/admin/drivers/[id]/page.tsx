@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useParams } from 'next/navigation';
-import { createClient } from '@/lib/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerFooter, DrawerClose, DrawerTrigger } from '@/components/ui/drawer';
@@ -111,42 +110,41 @@ export default function DriverDetailPage() {
   const [loading, setLoading] = useState(true);
   const [dataLoading, setDataLoading] = useState(false);
 
+  // Load driver profile + initial month data from server API
   useEffect(() => {
     if (!id) return;
-    async function loadProfile() {
-      const supabase = createClient();
-      const { data: dData } = await supabase.from('drivers').select('*').eq('id', id).single();
-      if (dData) {
-        setDriver(dData);
-        if (dData.vehicle_id) {
-          const { data: vData } = await supabase.from('vehicles').select('*').eq('id', dData.vehicle_id).single();
-          setVehicle(vData);
-        }
+    async function loadInitial() {
+      const monthParam = `${selectedMonth.start.slice(0, 7)}`;
+      const res = await fetch(`/api/admin/driver-detail?id=${id}&month=${monthParam}`);
+      if (res.ok) {
+        const data = await res.json();
+        setDriver(data.driver);
+        setVehicle(data.vehicle);
+        setRides(data.rides || []);
+        setExpenses(data.expenses || []);
       }
       setLoading(false);
     }
-    loadProfile();
+    loadInitial();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
   const loadMonthData = useCallback(async (month: MonthOption) => {
     setDataLoading(true);
-    const supabase = createClient();
-    const [ridesRes, expensesRes] = await Promise.all([
-      supabase.from('rides').select('id, ride_date, amount, payment_method, payment_status, notes')
-        .eq('driver_id', id).gte('ride_date', month.start).lte('ride_date', month.end)
-        .order('ride_date', { ascending: false }),
-      supabase.from('expenses').select('id, expense_date, amount, category, description, receipt_image_url')
-        .eq('driver_id', id).gte('expense_date', month.start).lte('expense_date', month.end)
-        .order('expense_date', { ascending: false }),
-    ]);
-    setRides(ridesRes.data || []);
-    setExpenses(expensesRes.data || []);
+    const monthParam = `${month.start.slice(0, 7)}`;
+    const res = await fetch(`/api/admin/driver-detail?id=${id}&month=${monthParam}`);
+    if (res.ok) {
+      const data = await res.json();
+      setRides(data.rides || []);
+      setExpenses(data.expenses || []);
+    }
     setDataLoading(false);
   }, [id]);
 
   useEffect(() => {
-    if (id) loadMonthData(selectedMonth);
-  }, [id, selectedMonth, loadMonthData]);
+    if (id && !loading) loadMonthData(selectedMonth);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedMonth]);
 
   const totalRevenue = rides.reduce((s, r) => s + r.amount, 0);
   const totalExpenses = expenses.reduce((s, e) => s + e.amount, 0);
