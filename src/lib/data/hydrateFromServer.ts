@@ -80,3 +80,36 @@ export async function hydrateFromServer(driverId: string): Promise<{ rides: numb
 
   return { rides: ridesImported, expenses: expensesImported };
 }
+
+/**
+ * Refresh payment statuses for synced voucher rides.
+ * When admin or partner marks a voucher as "Collected" in Supabase,
+ * this updates the local Dexie record so the driver sees the change.
+ * Runs on every app open — lightweight query (voucher rides only).
+ */
+export async function refreshPaymentStatuses(driverId: string): Promise<number> {
+  const supabase = createClient();
+
+  // Fetch all voucher rides with their current payment_status from Supabase
+  const { data: serverRides } = await supabase
+    .from('rides')
+    .select('id, payment_status, collected_by_name, collected_by_role')
+    .eq('driver_id', driverId)
+    .eq('payment_method', 'Voucher');
+
+  if (!serverRides || serverRides.length === 0) return 0;
+
+  let updated = 0;
+  for (const sr of serverRides) {
+    const localId = `srv-${sr.id}`;
+    const localRide = await db.rides.get(localId);
+    if (localRide && localRide.paymentStatus !== sr.payment_status) {
+      await db.rides.update(localId, {
+        paymentStatus: sr.payment_status as any,
+      });
+      updated++;
+    }
+  }
+
+  return updated;
+}

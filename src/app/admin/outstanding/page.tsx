@@ -50,7 +50,14 @@ export default function OutstandingPaymentsPage() {
   const markCollected = async (rideId: string) => {
     setUpdatingId(rideId);
     const supabase = createClient();
-    await supabase.from('rides').update({ payment_status: 'Collected' }).eq('id', rideId);
+    const { data: { user } } = await supabase.auth.getUser();
+    await supabase.from('rides').update({
+      payment_status: 'Collected',
+      collected_by: user?.id,
+      collected_by_name: 'Admin',
+      collected_by_role: 'admin',
+      collected_at: new Date().toISOString(),
+    }).eq('id', rideId);
     setRides(prev => prev.filter(r => r.id !== rideId));
     setUpdatingId(null);
   };

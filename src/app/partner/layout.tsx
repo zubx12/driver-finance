@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Home, Car, PieChart, Wallet, Menu, Bell, LogOut } from 'lucide-react';
+import { Home, Car, PieChart, Wallet, Menu, Bell, LogOut, AlertTriangle } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { PartnerProvider, usePartner } from '@/contexts/PartnerContext';
 import { createClient } from '@/lib/supabase/client';
@@ -34,6 +34,7 @@ function PartnerLayoutInner({ children }: { children: React.ReactNode }) {
     { name: 'Vehicles', href: '/partner/vehicles', icon: Car },
     { name: 'Finance', href: '/partner/financials', icon: PieChart },
     { name: 'Wallet', href: '/partner/settlements', icon: Wallet },
+    { name: 'Outstanding', href: '/partner/outstanding', icon: AlertTriangle },
     { name: 'Menu', href: '/partner/settings', icon: Menu },
   ];
 

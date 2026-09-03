@@ -4,11 +4,14 @@ import { useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '@/lib/db/dexie';
 import { Card, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Car, Receipt, Clock, CheckCircle2, Wallet, Building, Circle, Flag, PencilLine } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { CorrectionRequestModal } from '@/components/driver/CorrectionRequestModal';
 import { SkeletonCard, EmptyState } from '@/components/ui/skeleton-card';
+import { useDriver } from '@/contexts/DriverContext';
+import { createClient } from '@/lib/supabase/client';
 
 function groupByDate<T extends { date: string }>(items: T[]): Record<string, T[]> {
   return items.reduce((acc, item) => {
@@ -20,8 +23,10 @@ function groupByDate<T extends { date: string }>(items: T[]): Record<string, T[]
 }
 
 export default function DriverHistoryPage() {
+  const { driverId, driverName } = useDriver();
   const [rideFilter, setRideFilter] = useState<'ALL' | 'CASH' | 'VOUCHER'>('ALL');
   const [dateFilter, setDateFilter] = useState<string>('All Time');
+  const [collectingId, setCollectingId] = useState<string | null>(null);
   const [correctionTarget, setCorrectionTarget] = useState<{
     type: 'ride' | 'expense';
     id: string;
@@ -48,6 +53,32 @@ export default function DriverHistoryPage() {
       await db.expenses.update(editingId, { amount: newAmount });
     }
     setEditingId(null);
+  };
+
+  // Mark a voucher ride as collected by this driver
+  const markVoucherCollected = async (rideId: string) => {
+    setCollectingId(rideId);
+    try {
+      // Update Dexie locally first for instant UI feedback
+      await db.rides.update(rideId, { paymentStatus: 'Collected' });
+
+      // Also update Supabase if it's a synced record
+      if (rideId.startsWith('srv-')) {
+        const serverId = rideId.replace('srv-', '');
+        const supabase = createClient();
+        const { data: { user } } = await supabase.auth.getUser();
+        await supabase.from('rides').update({
+          payment_status: 'Collected',
+          collected_by: user?.id,
+          collected_by_name: driverName || 'Driver',
+          collected_by_role: 'driver',
+          collected_at: new Date().toISOString(),
+        }).eq('id', serverId);
+      }
+    } catch (err) {
+      console.error('Failed to mark as collected:', err);
+    }
+    setCollectingId(null);
   };
 
   const todayStr = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Riyadh' });
@@ -219,14 +250,28 @@ export default function DriverHistoryPage() {
 
                       <div className="flex items-center justify-between text-xs pt-2 border-t">
                         <div className="flex items-center gap-1 font-medium">
-                          {ride.paymentStatus === 'Received' || ride.paymentStatus === 'Collected' ? (
-                            <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                          {ride.paymentStatus === 'Received' ? (
+                            <><CheckCircle2 className="h-4 w-4 text-emerald-500" /><span className="text-emerald-600">Received</span></>
+                          ) : ride.paymentStatus === 'Collected' ? (
+                            <><CheckCircle2 className="h-4 w-4 text-emerald-500" /><span className="text-emerald-600">Payment Collected</span></>
                           ) : (
-                            <Circle className="h-4 w-4 text-amber-500" />
+                            <><Circle className="h-4 w-4 text-amber-500" /><span className="text-amber-600">Awaiting Payment</span></>
                           )}
-                          {ride.paymentStatus}
                         </div>
                         <div className="flex items-center gap-2 text-zinc-400">
+                          {/* Mark Collected button for outstanding voucher rides */}
+                          {ride.revenueType === 'VOUCHER' && ride.paymentStatus === 'Outstanding' && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-6 px-2 text-[10px] gap-1 text-emerald-600 border-emerald-200 hover:bg-emerald-50"
+                              disabled={collectingId === ride.id}
+                              onClick={() => markVoucherCollected(ride.id)}
+                            >
+                              <CheckCircle2 className="h-3 w-3" />
+                              {collectingId === ride.id ? '...' : 'Mark Collected'}
+                            </Button>
+                          )}
                           {ride.date !== todayStr && ride.syncStatus === 'synced' && (
                             <button
                               onClick={() => setCorrectionTarget({ type: 'ride', id: ride.id, date: ride.date, amount: ride.amount })}

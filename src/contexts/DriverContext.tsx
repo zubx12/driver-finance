@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { createClient } from '@/lib/supabase/client';
-import { hydrateFromServer } from '@/lib/data/hydrateFromServer';
+import { hydrateFromServer, refreshPaymentStatuses } from '@/lib/data/hydrateFromServer';
 
 interface DriverProfile {
   driverId: string;
@@ -117,6 +117,8 @@ export function DriverProvider({ children }: { children: ReactNode }) {
     // Hydrate Dexie from Supabase if this is a fresh login (empty IndexedDB)
     try {
       await hydrateFromServer(driver.id);
+      // Always refresh payment statuses (even if Dexie already had data)
+      await refreshPaymentStatuses(driver.id);
     } catch (err) {
       console.warn('[Hydrate] Failed to pull server data into Dexie:', err);
     }
