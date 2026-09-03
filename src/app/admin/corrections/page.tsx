@@ -8,10 +8,7 @@
  * Admin can approve or reject each request with an optional note.
  */
 
-// Prevent static prerendering — this page requires auth + live data
-export const dynamic = 'force-dynamic';
-
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -35,9 +32,14 @@ export default function AdminCorrectionsPage() {
   const [actionNote, setActionNote] = useState<Record<string, string>>({});
   const [isLoading, setIsLoading] = useState(true);
 
-  const supabase = createClient();
+  const supabaseRef = useRef<ReturnType<typeof createClient> | null>(null);
+  function getSupabase() {
+    if (!supabaseRef.current) supabaseRef.current = createClient();
+    return supabaseRef.current;
+  }
 
   const fetchRequests = useCallback(async () => {
+    const supabase = getSupabase();
     const { data } = await supabase
       .from('correction_requests')
       .select('*, drivers(name)')
@@ -53,6 +55,7 @@ export default function AdminCorrectionsPage() {
   useEffect(() => {
     fetchRequests();
 
+    const supabase = getSupabase();
     const channel = supabase
       .channel('admin-corrections-queue')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'correction_requests' },
@@ -65,7 +68,7 @@ export default function AdminCorrectionsPage() {
   }, [fetchRequests]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function resolve(id: string, status: 'approved' | 'rejected') {
-    await supabase
+    await getSupabase()
       .from('correction_requests')
       .update({ status, admin_note: actionNote[id] ?? null, resolved_at: new Date().toISOString() })
       .eq('id', id);
