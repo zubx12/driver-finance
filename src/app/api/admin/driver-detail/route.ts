@@ -39,6 +39,8 @@ export async function GET(request: NextRequest) {
 
   // 4. Fetch vehicle if assigned
   let vehicle = null;
+  let vehiclePartners: any[] = [];
+  let driverCompensation: any = null;
   if (driver.vehicle_id) {
     const { data: vData } = await admin
       .from('vehicles')
@@ -46,6 +48,23 @@ export async function GET(request: NextRequest) {
       .eq('id', driver.vehicle_id)
       .single();
     vehicle = vData;
+
+    // Fetch partner equity split for the vehicle
+    const { data: vpData } = await admin
+      .from('vehicle_partners')
+      .select('id, percentage, partners(name)')
+      .eq('vehicle_id', driver.vehicle_id)
+      .is('effective_to', null);
+    vehiclePartners = vpData ?? [];
+
+    // Fetch driver compensation
+    const { data: compData } = await admin
+      .from('driver_compensation')
+      .select('compensation_type, commission_percentage, fixed_salary_amount, bonus_rate')
+      .eq('vehicle_id', driver.vehicle_id)
+      .is('effective_to', null)
+      .maybeSingle();
+    driverCompensation = compData;
   }
 
   // 5. Fetch rides and expenses for the requested month
@@ -84,6 +103,8 @@ export async function GET(request: NextRequest) {
   return NextResponse.json({
     driver,
     vehicle,
+    vehiclePartners,
+    driverCompensation,
     rides: ridesRes.data ?? [],
     expenses: expensesRes.data ?? [],
     period: { start: startDate, end: endDate },

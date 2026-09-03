@@ -108,6 +108,8 @@ export default function DriverDetailPage() {
 
   const [driver, setDriver] = useState<Driver | null>(null);
   const [vehicle, setVehicle] = useState<Vehicle | null>(null);
+  const [vehiclePartners, setVehiclePartners] = useState<any[]>([]);
+  const [driverCompensation, setDriverCompensation] = useState<any>(null);
   const [rides, setRides] = useState<Ride[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [loading, setLoading] = useState(true);
@@ -123,6 +125,8 @@ export default function DriverDetailPage() {
         const data = await res.json();
         setDriver(data.driver);
         setVehicle(data.vehicle);
+        setVehiclePartners(data.vehiclePartners || []);
+        setDriverCompensation(data.driverCompensation || null);
         setRides(data.rides || []);
         setExpenses(data.expenses || []);
       }
@@ -240,6 +244,62 @@ export default function DriverDetailPage() {
             </div>
           </CardContent>
         </Card>
+      )}
+
+      {/* Partner Split + Commission */}
+      {vehicle && (vehiclePartners.length > 0 || driverCompensation) && (
+        <div className="grid gap-4 grid-cols-1 sm:grid-cols-2">
+          {/* Partner Equity Split */}
+          {vehiclePartners.length > 0 && (
+            <Card className="border-zinc-200 dark:border-zinc-800">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-xs font-medium text-zinc-500 uppercase tracking-wider">Partner Equity Split</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {vehiclePartners.map((vp: any, i: number) => {
+                  const colors = ['bg-indigo-500', 'bg-rose-500', 'bg-amber-500', 'bg-emerald-500'];
+                  const bgColors = ['bg-indigo-100 dark:bg-indigo-900/30', 'bg-rose-100 dark:bg-rose-900/30', 'bg-amber-100 dark:bg-amber-900/30', 'bg-emerald-100 dark:bg-emerald-900/30'];
+                  return (
+                    <div key={vp.id}>
+                      <div className="flex items-center justify-between text-sm mb-1">
+                        <span className="font-medium">{vp.partners?.name || 'Partner'}</span>
+                        <span className="font-bold">{vp.percentage}%</span>
+                      </div>
+                      <div className={`h-2 rounded-full ${bgColors[i % bgColors.length]}`}>
+                        <div className={`h-2 rounded-full ${colors[i % colors.length]} transition-all`} style={{ width: `${vp.percentage}%` }} />
+                      </div>
+                    </div>
+                  );
+                })}
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Driver Compensation */}
+          {driverCompensation && (
+            <Card className="border-zinc-200 dark:border-zinc-800">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-xs font-medium text-zinc-500 uppercase tracking-wider">Driver Compensation</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {driverCompensation.compensation_type === 'commission' ? (
+                  <div>
+                    <p className="text-2xl font-bold text-indigo-600">{driverCompensation.commission_percentage}%</p>
+                    <p className="text-xs text-zinc-500 mt-1">Commission on Net Revenue</p>
+                  </div>
+                ) : (
+                  <div>
+                    <p className="text-2xl font-bold text-emerald-600">SAR {Number(driverCompensation.fixed_salary_amount).toLocaleString()}</p>
+                    <p className="text-xs text-zinc-500 mt-1">Fixed Monthly Salary</p>
+                  </div>
+                )}
+                {driverCompensation.bonus_rate > 0 && (
+                  <p className="text-xs text-amber-600 font-medium mt-2">+ {driverCompensation.bonus_rate}% Bonus</p>
+                )}
+              </CardContent>
+            </Card>
+          )}
+        </div>
       )}
 
       {/* KPI Cards */}
