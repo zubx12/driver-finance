@@ -5,7 +5,8 @@ import { createClient } from '@/lib/supabase/client';
 export interface DbExpense {
   id: string;
   driver_id: string;
-  vehicle_id: string;
+  vehicle_id: string | null;
+  allocation: 'Vehicle' | 'Driver' | 'Company';
   amount: number;
   category: string;
   payment_method: 'Cash' | 'Card' | 'Transfer';
@@ -16,9 +17,13 @@ export interface DbExpense {
   updated_at: string;
 }
 
+/** Only 'Vehicle' expenses reduce a vehicle's net (docs/payout-rules.md, D5). */
+export type ExpenseAllocation = 'Vehicle' | 'Driver' | 'Company';
+
 export interface InsertExpensePayload {
   driver_id: string;
-  vehicle_id: string;
+  vehicle_id: string | null; // null unless allocation is 'Vehicle'
+  allocation: ExpenseAllocation;
   amount: number;
   category: string;
   payment_method: 'Cash' | 'Card' | 'Transfer';

@@ -127,8 +127,9 @@ export default function VehicleSetupPage() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ 
         vehicleId, 
-        splits: splits.map(s => ({ partnerId: s.partnerId, percentage: s.pct })), 
-        driverPayType, 
+        splits: splits.map(s => ({ partnerId: s.partnerId, percentage: s.pct })),
+        // Pay terms belong to the assigned driver; without one only splits are saved.
+        driverPayType: assignedDriverId ? driverPayType : undefined,
         driverCommission, 
         driverSalary, 
         driverBonus 
@@ -222,6 +223,11 @@ export default function VehicleSetupPage() {
           <div className="p-6 border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900/50">
             <h3 className="text-xl font-bold">Driver Pay Setup</h3>
             <p className="text-sm text-zinc-500">Configure compensation for the primary driver of this vehicle.</p>
+            {!assignedDriverId && (
+              <p className="mt-2 text-sm font-medium text-amber-600 dark:text-amber-400">
+                No driver is assigned, so pay terms will not be saved. Assign a driver above first.
+              </p>
+            )}
           </div>
           <div className="p-6 space-y-6">
             <div className="flex gap-4">

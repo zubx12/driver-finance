@@ -73,11 +73,16 @@ export async function flushPendingExpenses(driverId: string, vehicleId: string):
         localExpense.date,
         localExpense.receiptImageBase64
       );
-      let receiptUrl = storagePath;
+      const receiptUrl = storagePath;
 
+      // D5: only "Current Vehicle" expenses are charged to a vehicle. Driver and
+      // company expenses are stored without one so they never reduce partner pay.
+      // Entries saved before allocation existed were vehicle expenses.
+      const isVehicleExpense = (localExpense.allocation ?? 'Current Vehicle') === 'Current Vehicle';
       const payload: InsertExpensePayload = {
         driver_id: driverId,
-        vehicle_id: localExpense.vehicleId ?? vehicleId,
+        allocation: isVehicleExpense ? 'Vehicle' : localExpense.allocation === 'Driver' ? 'Driver' : 'Company',
+        vehicle_id: isVehicleExpense ? (localExpense.vehicleId ?? vehicleId) : null,
         amount: localExpense.amount,
         category: localExpense.category,
         payment_method: localExpense.paymentSource === 'Cash'

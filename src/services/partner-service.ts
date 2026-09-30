@@ -134,7 +134,7 @@ export const partnerService = {
       return {
         id: e.id,
         date: e.expense_date,
-        vehicleId: e.vehicle_id,
+        vehicleId: e.vehicle_id ?? vehicleId, // queried by vehicle, so always set
         driverId: e.driver_id,
         driverName: d?.name || 'Unknown Driver',
         amount: e.amount,
