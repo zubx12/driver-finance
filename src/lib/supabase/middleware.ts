@@ -1,5 +1,6 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
+import { getAppRole } from '@/lib/auth/roles'
 
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request })
@@ -41,7 +42,7 @@ export async function updateSession(request: NextRequest) {
 
   // Authenticated users on login or root page: redirect to their portal
   if (user && (isAuthRoute || pathname === '/')) {
-    const role = user.user_metadata?.role as string | undefined
+    const role = getAppRole(user)
     const url = request.nextUrl.clone()
     url.pathname = role === 'driver' ? '/driver'
       : role === 'partner' ? '/partner'
@@ -52,7 +53,7 @@ export async function updateSession(request: NextRequest) {
   // Role-based route protection
   // NOTE: RLS is the real security boundary. This is a UX redirect only.
   if (user) {
-    const role = user.user_metadata?.role as string | undefined
+    const role = getAppRole(user)
 
     const isDriverRoute = pathname.startsWith('/driver')
     const isPartnerRoute = pathname.startsWith('/partner')

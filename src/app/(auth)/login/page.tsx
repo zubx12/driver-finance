@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Shield, Briefcase, Car, User, Mail, Key, ArrowRight, AlertCircle } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
+import { getAppRole } from '@/lib/auth/roles';
 
 type Role = 'admin' | 'partner' | 'driver';
 
@@ -51,7 +52,7 @@ export default function LoginPage() {
       }
 
       // Redirect based on role stored in user metadata
-      const role = result.data.user?.user_metadata?.role as string | undefined;
+      const role = getAppRole(result.data.user);
       if (role === 'driver') {
         router.push('/driver');
       } else if (role === 'partner') {

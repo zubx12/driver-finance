@@ -10,7 +10,6 @@ import { Car, Receipt, Clock, CheckCircle2, Wallet, Building, Circle, Flag, Penc
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { CorrectionRequestModal } from '@/components/driver/CorrectionRequestModal';
 import { SkeletonCard, EmptyState } from '@/components/ui/skeleton-card';
-import { useDriver } from '@/contexts/DriverContext';
 import { createClient } from '@/lib/supabase/client';
 
 function groupByDate<T extends { date: string }>(items: T[]): Record<string, T[]> {
@@ -23,7 +22,6 @@ function groupByDate<T extends { date: string }>(items: T[]): Record<string, T[]
 }
 
 export default function DriverHistoryPage() {
-  const { driverId, driverName } = useDriver();
   const [rideFilter, setRideFilter] = useState<'ALL' | 'CASH' | 'VOUCHER'>('ALL');
   const [dateFilter, setDateFilter] = useState<string>('All Time');
   const [collectingId, setCollectingId] = useState<string | null>(null);
@@ -59,24 +57,17 @@ export default function DriverHistoryPage() {
   const markVoucherCollected = async (rideId: string) => {
     setCollectingId(rideId);
     try {
-      // Update Dexie locally first for instant UI feedback
-      await db.rides.update(rideId, { paymentStatus: 'Collected' });
-
-      // Also update Supabase if it's a synced record
+      // Synced records: the server is the source of truth, so update it first.
+      // collect_voucher only changes the collection fields (see migration 20260930000001).
       if (rideId.startsWith('srv-')) {
         const serverId = rideId.replace('srv-', '');
-        const supabase = createClient();
-        const { data: { user } } = await supabase.auth.getUser();
-        await supabase.from('rides').update({
-          payment_status: 'Collected',
-          collected_by: user?.id,
-          collected_by_name: driverName || 'Driver',
-          collected_by_role: 'driver',
-          collected_at: new Date().toISOString(),
-        }).eq('id', serverId);
+        const { error } = await createClient().rpc('collect_voucher', { p_ride_id: serverId });
+        if (error) throw new Error(error.message);
       }
+      await db.rides.update(rideId, { paymentStatus: 'Collected' });
     } catch (err) {
       console.error('Failed to mark as collected:', err);
+      alert(`Could not mark voucher as collected: ${err instanceof Error ? err.message : 'unknown error'}`);
     }
     setCollectingId(null);
   };

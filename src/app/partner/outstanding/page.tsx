@@ -73,25 +73,13 @@ export default function PartnerOutstandingPage() {
 
   const markCollected = async (rideId: string) => {
     setUpdatingId(rideId);
-    const supabase = createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-
-    // Get partner name
-    const { data: partner } = await supabase
-      .from('partners')
-      .select('name')
-      .eq('linked_auth_id', user?.id ?? '')
-      .single();
-
-    await supabase.from('rides').update({
-      payment_status: 'Collected',
-      collected_by: user?.id,
-      collected_by_name: partner?.name || 'Partner',
-      collected_by_role: 'partner',
-      collected_at: new Date().toISOString(),
-    }).eq('id', rideId);
-
-    setRides(prev => prev.filter(r => r.id !== rideId));
+    // collect_voucher records who collected it and can only change the collection fields.
+    const { error } = await createClient().rpc('collect_voucher', { p_ride_id: rideId });
+    if (error) {
+      alert(`Could not mark voucher as collected: ${error.message}`);
+    } else {
+      setRides(prev => prev.filter(r => r.id !== rideId));
+    }
     setUpdatingId(null);
   };
 

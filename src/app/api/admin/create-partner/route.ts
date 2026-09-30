@@ -2,6 +2,7 @@ import { createClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
+import { getAppRole } from '@/lib/auth/roles';
 
 const DOMAIN = 'driverfinance.internal';
 
@@ -23,7 +24,7 @@ export async function POST(request: NextRequest) {
   );
 
   const { data: { user } } = await supabaseAuth.auth.getUser();
-  if (!user || user.user_metadata?.role !== 'admin') {
+  if (!user || getAppRole(user) !== 'admin') {
     return NextResponse.json({ message: 'Unauthorized' }, { status: 403 });
   }
 
@@ -46,10 +47,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ message: 'Driver not found' }, { status: 404 });
     }
 
-    // Update the auth user's metadata to include partner role
-    await adminClient.auth.admin.updateUserById(driver.linked_auth_id, {
-      user_metadata: { role: 'partner', name: driver.name, username: driver.username },
+    // Switch the account's role to partner. Role lives in app_metadata (service-role only).
+    // NOTE: this keeps the existing behaviour of replacing the driver role; how a
+    // driver-partner should work is remediation decision D6.
+    const { error: roleErr } = await adminClient.auth.admin.updateUserById(driver.linked_auth_id, {
+      app_metadata: { role: 'partner' },
+      user_metadata: { name: driver.name, username: driver.username },
     });
+    if (roleErr) {
+      return NextResponse.json({ message: roleErr.message }, { status: 500 });
+    }
 
     const { data: partnerData, error: partnerErr } = await adminClient
       .from('partners')
@@ -90,7 +97,8 @@ export async function POST(request: NextRequest) {
     email,
     password,
     email_confirm: true,
-    user_metadata: { role: 'partner', name, username: cleanUsername },
+    app_metadata: { role: 'partner' },
+    user_metadata: { name, username: cleanUsername },
   });
 
   if (authError) {

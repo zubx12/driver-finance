@@ -2,6 +2,7 @@ import { createClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
+import { getAppRole } from '@/lib/auth/roles';
 
 const DOMAIN = 'driverfinance.internal';
 
@@ -23,7 +24,7 @@ export async function POST(request: NextRequest) {
   );
 
   const { data: { user } } = await supabaseAuth.auth.getUser();
-  if (!user || user.user_metadata?.role !== 'admin') {
+  if (!user || getAppRole(user) !== 'admin') {
     return NextResponse.json({ message: 'Unauthorized' }, { status: 403 });
   }
 
@@ -54,7 +55,9 @@ export async function POST(request: NextRequest) {
     email,
     password,
     email_confirm: true,
-    user_metadata: { role: 'driver', name, username: cleanUsername },
+    // Role lives in app_metadata (service-role only); user_metadata is user-editable.
+    app_metadata: { role: 'driver' },
+    user_metadata: { name, username: cleanUsername },
   });
 
   if (authError) {
