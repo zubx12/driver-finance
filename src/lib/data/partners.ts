@@ -13,26 +13,7 @@ export interface DbPartner {
   updated_at: string;
 }
 
-export interface CreatePartnerPayload {
-  name: string;
-  phone: string;
-  password: string;
-  status?: 'Active' | 'Inactive';
-}
-
 // ─── Partner queries ──────────────────────────────────────────────────────────
-
-/** Get all partners. Admin only (RLS enforced). */
-export async function getAdminPartners(): Promise<DbPartner[]> {
-  const supabase = createClient();
-  const { data, error } = await supabase
-    .from('partners')
-    .select('*')
-    .order('name', { ascending: true });
-
-  if (error) throw new Error(`getAdminPartners: ${error.message}`);
-  return data ?? [];
-}
 
 /** Get the currently logged-in partner's profile. */
 export async function getCurrentPartner(): Promise<DbPartner | null> {
@@ -63,21 +44,3 @@ export async function getPartnerByAuthId(authId: string): Promise<DbPartner | nu
   return data ?? null;
 }
 
-/**
- * Admin: Create a new partner account.
- * Calls a server action — Supabase Auth admin API must not be called from the browser.
- */
-export async function createPartner(payload: CreatePartnerPayload): Promise<{ partnerId: string }> {
-  const response = await fetch('/api/admin/create-partner', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  });
-
-  if (!response.ok) {
-    const err = await response.json();
-    throw new Error(err.message ?? 'Failed to create partner');
-  }
-
-  return response.json();
-}

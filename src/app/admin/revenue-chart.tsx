@@ -4,7 +4,7 @@ import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 
 interface ChartPoint { date: string; revenue: number; expenses: number; }
 
-export function RevenueChart({ data }: { data: ChartPoint[] }) {
+export default function RevenueChart({ data }: { data: ChartPoint[] }) {
   return (
     <ResponsiveContainer width="100%" height={220}>
       <AreaChart data={data} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>

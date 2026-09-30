@@ -14,6 +14,12 @@ export default function VehicleSetupPage() {
   const [allDrivers, setAllDrivers] = useState<{ id: string, name: string, username: string | null }[]>([]);
   const [assignedDriverId, setAssignedDriverId] = useState<string>('');
   const [isAssigning, setIsAssigning] = useState(false);
+  const [driverPayType, setDriverPayType] = useState<'commission' | 'fixed_salary'>('commission');
+  const [driverCommission, setDriverCommission] = useState('35.0');
+  const [driverSalary, setDriverSalary] = useState('4000.00');
+  const [driverBonus, setDriverBonus] = useState('0');
+  // Real splits mapped to actual partner IDs
+  const [splits, setSplits] = useState<{ id: string, partnerId: string, pct: string }[]>([]);
 
   useEffect(() => {
     // Load Vehicle
@@ -26,9 +32,10 @@ export default function VehicleSetupPage() {
       .then(d => { if (Array.isArray(d)) setPartners(d); });
 
     // Load all drivers for the dropdown
-    fetch('/api/admin/drivers-list-full')
+    fetch('/api/admin/drivers-list-full?limit=100')
       .then(r => r.json())
-      .then(d => {
+      .then(res => {
+        const d = res.data;
         if (Array.isArray(d)) {
           setAllDrivers(d);
           // Find the driver assigned to this vehicle
@@ -81,22 +88,11 @@ export default function VehicleSetupPage() {
     loadExistingSplits();
   }, [vehicleId]);
 
-
-  const [driverPayType, setDriverPayType] = useState<'commission' | 'fixed_salary'>('commission');
-  const [driverCommission, setDriverCommission] = useState('35.0');
-  const [driverSalary, setDriverSalary] = useState('4000.00');
-  const [driverBonus, setDriverBonus] = useState('0');
-  
-  // Real splits mapped to actual partner IDs
-  const [splits, setSplits] = useState<{ id: string, partnerId: string, pct: string }[]>([]);
-  const [total, setTotal] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    setTotal(splits.reduce((s, r) => s + (parseFloat(r.pct) || 0), 0));
-  }, [splits]);
+  const total = splits.reduce((s, r) => s + (parseFloat(r.pct) || 0), 0);
 
   const handlePctChange = (id: string, val: string) => {
     setSplits(splits.map(s => s.id === id ? { ...s, pct: val } : s));

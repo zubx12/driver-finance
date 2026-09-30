@@ -64,22 +64,6 @@ export async function getCalculationsForVehicle(
   }));
 }
 
-/** Get all salary calculations across all vehicles. Admin only. */
-export async function getAllSalaryCalculations(): Promise<SalaryCalculationWithShares[]> {
-  const supabase = createClient();
-  const { data, error } = await supabase
-    .from('salary_calculations')
-    .select('*, salary_calculation_shares(*), driver_pay_calculations(*)')
-    .order('period_start', { ascending: false });
-
-  if (error) throw new Error(`getAllSalaryCalculations: ${error.message}`);
-  return (data ?? []).map(row => ({
-    ...row,
-    shares: row.salary_calculation_shares ?? [],
-    driverPay: row.driver_pay_calculations ?? [],
-  }));
-}
-
 /** Get salary calculation shares for the currently logged-in partner. */
 export async function getMyCalculationShares(): Promise<DbSalaryCalculationShare[]> {
   const supabase = createClient();
@@ -92,57 +76,6 @@ export async function getMyCalculationShares(): Promise<DbSalaryCalculationShare
     .order('created_at', { ascending: false });
 
   if (error) throw new Error(`getMyCalculationShares: ${error.message}`);
-  return data ?? [];
-}
-
-/**
- * Admin: trigger a salary calculation run via the Edge Function.
- * The Edge Function handles all the math and writes to salary_calculations.
- */
-export async function runSalaryCalculation(
-  vehicleId: string,
-  periodStart: string,
-  periodEnd: string
-): Promise<{ calculationId: string }> {
-  const supabase = createClient();
-  const { data, error } = await supabase.functions.invoke('calculate-salary', {
-    body: { vehicle_id: vehicleId, period_start: periodStart, period_end: periodEnd },
-  });
-
-  if (error) throw new Error(`runSalaryCalculation: ${error.message}`);
-  return data;
-}
-
-/**
- * Admin: finalize a salary calculation.
- * Once finalized, the status is locked — cannot be re-calculated.
- * This is enforced by a CHECK constraint in the DB.
- */
-export async function finalizeCalculation(calculationId: string): Promise<void> {
-  const supabase = createClient();
-  const { error } = await supabase
-    .from('salary_calculations')
-    .update({
-      status: 'finalized',
-      finalized_at: new Date().toISOString(),
-    })
-    .eq('id', calculationId)
-    .eq('status', 'draft'); // Cannot finalize something already finalized
-
-  if (error) throw new Error(`finalizeCalculation: ${error.message}`);
-}
-
-/** Get driver pay calculations for a specific salary calculation run. */
-export async function getDriverPayForCalculation(
-  calculationId: string
-): Promise<DbDriverPayCalculation[]> {
-  const supabase = createClient();
-  const { data, error } = await supabase
-    .from('driver_pay_calculations')
-    .select('*')
-    .eq('calculation_id', calculationId);
-
-  if (error) throw new Error(`getDriverPayForCalculation: ${error.message}`);
   return data ?? [];
 }
 

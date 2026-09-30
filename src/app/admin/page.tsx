@@ -1,20 +1,24 @@
 'use client';
 import { useState, useEffect } from 'react';
+import dynamic from 'next/dynamic';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { DollarSign, Users, Activity } from 'lucide-react';
 import { getAdminDashboardKPIs } from '@/lib/data/dailySummary';
-import { getAdminDrivers } from '@/lib/data/drivers';
+import type { PeriodFinancials } from '@/lib/data/dailySummary';
 import { createClient } from '@/lib/supabase/client';
-import { RevenueChart } from './revenue-chart';
 import { AdminLiveBanner } from './AdminLiveBanner';
 import type { RecentActivity } from '@/lib/realtime/use-realtime-admin';
+
+const RevenueChart = dynamic(() => import('./revenue-chart'), {
+  ssr: false,
+  loading: () => <div className="h-[220px] flex items-center justify-center text-zinc-400 text-sm">Loading chart...</div>
+});
 type Period = 'this_week' | 'this_month' | 'last_month';
 
 export default function AdminOverview() {
   const [period, setPeriod] = useState<Period>('this_month');
   const [kpis, setKpis] = useState({ totalRevenue: 0, totalExpenses: 0, netRevenue: 0, activeDrivers: 0 });
-  const [drivers, setDrivers] = useState<any[]>([]);
-  const [chartData, setChartData] = useState<any[]>([]);
+  const [chartData, setChartData] = useState<{ date: string; revenue: number; expenses: number }[]>([]);
   const [initialActivity, setInitialActivity] = useState<RecentActivity[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -41,18 +45,29 @@ export default function AdminOverview() {
         };
         const { start, end } = getDateRange(period);
 
-        const vehicleKpis = await getAdminDashboardKPIs(start, end).catch(() => []);
-        const allDrivers = await getAdminDrivers().catch(() => []);
-
         const supabase = createClient();
+        const startOf7Days = new Date(Date.now() - 6 * 86400000).toISOString().split('T')[0];
 
-        const { data: recentRidesRes } = await supabase
-          .from('rides')
-          .select('id, amount, ride_date, created_at, drivers(name)')
-          .order('created_at', { ascending: false })
-          .limit(5);
+        // Parallelize all 4 data fetches
+        const [vehicleKpis, activeCountResult, ridesResult, chartResult] = await Promise.all([
+          getAdminDashboardKPIs(start, end).catch(() => [] as { vehicleId: string; financials: PeriodFinancials }[]),
+          supabase
+            .from('drivers')
+            .select('id', { count: 'exact', head: true })
+            .eq('status', 'Active'),
+          supabase
+            .from('rides')
+            .select('id, amount, ride_date, created_at, drivers(name)')
+            .order('created_at', { ascending: false })
+            .limit(5),
+          supabase
+            .from('daily_summary')
+            .select('summary_date, total_revenue, total_expenses')
+            .gte('summary_date', startOf7Days)
+            .order('summary_date', { ascending: true }),
+        ]);
 
-        const recentRides = recentRidesRes ?? [];
+        const recentRides = ridesResult.data ?? [];
         const activity: RecentActivity[] = recentRides.map((r: any) => ({
           id: r.id,
           driverName: r.drivers?.name ?? 'Unknown Driver',
@@ -63,23 +78,15 @@ export default function AdminOverview() {
 
         setInitialActivity(activity);
 
-        setDrivers(allDrivers);
         setKpis({
-          totalRevenue: vehicleKpis.reduce((s: number, v: any) => s + v.financials.totalRevenue, 0),
-          totalExpenses: vehicleKpis.reduce((s: number, v: any) => s + v.financials.totalExpenses, 0),
-          netRevenue: vehicleKpis.reduce((s: number, v: any) => s + v.financials.netRevenue, 0),
-          activeDrivers: allDrivers.filter((d: any) => d.status === 'Active').length,
+          totalRevenue: vehicleKpis.reduce((s, v) => s + v.financials.totalRevenue, 0),
+          totalExpenses: vehicleKpis.reduce((s, v) => s + v.financials.totalExpenses, 0),
+          netRevenue: vehicleKpis.reduce((s, v) => s + v.financials.netRevenue, 0),
+          activeDrivers: activeCountResult.count ?? 0,
         });
 
-        const startOf7Days = new Date(Date.now() - 6 * 86400000).toISOString().split('T')[0];
-        const { data: rawChart } = await supabase
-          .from('daily_summary')
-          .select('summary_date, total_revenue, total_expenses')
-          .gte('summary_date', startOf7Days)
-          .order('summary_date', { ascending: true });
-
         // FIX ADM-03: Group by date to avoid duplicate points
-        const grouped = (rawChart ?? []).reduce((acc: Record<string, { date: string; revenue: number; expenses: number }>, row: any) => {
+        const grouped = (chartResult.data ?? []).reduce((acc: Record<string, { date: string; revenue: number; expenses: number }>, row: { summary_date: string; total_revenue: number; total_expenses: number }) => {
           const key = row.summary_date;
           if (!acc[key]) {
             acc[key] = { 
