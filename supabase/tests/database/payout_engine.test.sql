@@ -226,11 +226,11 @@ SELECT is((SELECT total_revenue FROM public.daily_summary WHERE summary_date = '
   'M1: moving a ride to another day empties the day it left');
 
 INSERT INTO public.expenses (driver_id, vehicle_id, allocation, amount, category, payment_method, receipt_image_url, expense_date)
-VALUES ('33333333-0000-0000-0000-000000000001', NULL, 'Company', 75, 'Office', 'Cash', 'x/2026-08-03/r.jpg', '2026-08-03');
+VALUES ('33333333-0000-0000-0000-000000000001', NULL, 'Company', 75, 'Office', 'Cash', '33333333-0000-0000-0000-000000000001/2026-08-03/r.jpg', '2026-08-03');
 SELECT is((SELECT count(*) FROM public.daily_summary WHERE summary_date = '2026-08-03'), 0::bigint,
   'D5: company expenses do not reduce any vehicle net');
 SELECT throws_ok($$ INSERT INTO public.expenses (driver_id, vehicle_id, allocation, amount, category, payment_method, receipt_image_url, expense_date)
-  VALUES ('33333333-0000-0000-0000-000000000001', NULL, 'Vehicle', 10, 'Fuel', 'Cash', 'x/y/z.jpg', '2026-08-03') $$,
+  VALUES ('33333333-0000-0000-0000-000000000001', NULL, 'Vehicle', 10, 'Fuel', 'Cash', '33333333-0000-0000-0000-000000000001/2026-08-03/z.jpg', '2026-08-03') $$,
   '23514', NULL, 'D5: a vehicle expense must name the vehicle');
 
 -- ─── Non-admins cannot run the engine ────────────────────────────────────────
