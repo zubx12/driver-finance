@@ -120,8 +120,12 @@ for (const file of tests) {
   try {
     await db.exec(body);
   } catch (e) {
+    // The transaction is aborted: results recorded so far are lost, so report
+    // the error that stopped the file and move on.
     failures++;
     console.log(`  ERROR while running: ${e.message}${e.where ? '\n  where: ' + e.where : ''}`);
+    await db.exec('ROLLBACK');
+    continue;
   }
   try {
     await db.exec('RESET ROLE');

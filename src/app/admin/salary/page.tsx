@@ -18,7 +18,7 @@ interface DriverPay {
 }
 interface Calc {
   id: string; vehicleLabel: string; period: string;
-  totalRevenue: number; totalExpenses: number; companyExpenses: number; chargedExpenses: number;
+  totalRevenue: number; totalExpenses: number; companyExpenses: number; chargedExpenses: number; adjustmentsTotal: number;
   netRevenue: number; driverPayTotal: number; companyRetained: number;
   lossIn: number; lossOut: number;
   status: 'draft' | 'finalized'; adminNotes: string; warnings: string[];
@@ -28,7 +28,7 @@ interface RunResult { vehicle: string; status: 'calculated' | 'skipped_finalized
 
 interface CalcRow {
   id: string; period_start: string; status: 'draft' | 'finalized'; admin_notes: string | null;
-  total_revenue: number; total_expenses: number; company_expenses: number | null; charged_expenses: number | null; net_revenue: number;
+  total_revenue: number; total_expenses: number; company_expenses: number | null; charged_expenses: number | null; adjustments_total: number | null; net_revenue: number;
   driver_pay_total: number; company_retained: number; loss_brought_forward: number; loss_carried_forward: number;
   warnings: { message?: string }[] | null;
   vehicles: { make: string; model: string; plate_number: string } | null;
@@ -52,6 +52,7 @@ function toCalc(c: CalcRow): Calc {
     totalExpenses: Number(c.total_expenses),
     companyExpenses: Number(c.company_expenses ?? 0),
     chargedExpenses: Number(c.charged_expenses ?? 0),
+    adjustmentsTotal: Number(c.adjustments_total ?? 0),
     netRevenue: Number(c.net_revenue),
     driverPayTotal: Number(c.driver_pay_total),
     companyRetained: Number(c.company_retained),
@@ -81,7 +82,7 @@ function toCalc(c: CalcRow): Calc {
 async function fetchCalcs(month: string): Promise<{ calcs?: Calc[]; error?: string }> {
   const { data, error } = await createClient()
     .from('salary_calculations')
-    .select(`id, period_start, status, admin_notes, total_revenue, total_expenses, company_expenses, charged_expenses, net_revenue,
+    .select(`id, period_start, status, admin_notes, total_revenue, total_expenses, company_expenses, charged_expenses, adjustments_total, net_revenue,
              driver_pay_total, company_retained, loss_brought_forward, loss_carried_forward, warnings,
              vehicles(make, model, plate_number),
              salary_calculation_shares(ownership_percentage, share_amount, partners(name)),
@@ -405,6 +406,7 @@ export default function AdminSalaryPage() {
                                 ['Vehicle expenses', -calc.totalExpenses],
                                 ['Company expenses', -calc.companyExpenses],
                                 ['Driver/company expenses charged here', -calc.chargedExpenses],
+                                ['Corrections to paid months (adjustments)', calc.adjustmentsTotal],
                                 ['Net', calc.netRevenue],
                                 ['Driver pay', -calc.driverPayTotal],
                                 ['Loss brought forward', -calc.lossIn],

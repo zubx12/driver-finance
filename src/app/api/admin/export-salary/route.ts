@@ -6,7 +6,7 @@ import { getAppRole } from '@/lib/auth/roles';
 
 interface ExportRow {
   period_start: string; status: string;
-  total_revenue: number; total_expenses: number; company_expenses: number; charged_expenses: number; net_revenue: number;
+  total_revenue: number; total_expenses: number; company_expenses: number; charged_expenses: number; adjustments_total: number; net_revenue: number;
   company_retained: number; loss_brought_forward: number; loss_carried_forward: number;
   vehicles: { make: string; model: string; plate_number: string } | null;
   salary_calculation_shares: { ownership_percentage: number; share_amount: number; partners: { name: string } | null }[];
@@ -48,7 +48,7 @@ export async function GET() {
   
   const { data, error } = await admin
     .from('salary_calculations')
-    .select(`period_start, total_revenue, total_expenses, company_expenses, charged_expenses, net_revenue, driver_pay_total,
+    .select(`period_start, total_revenue, total_expenses, company_expenses, charged_expenses, adjustments_total, net_revenue, driver_pay_total,
              company_retained, loss_brought_forward, loss_carried_forward, status,
              vehicles(make, model, plate_number),
              salary_calculation_shares(ownership_percentage, share_amount, partners(name)),
@@ -65,12 +65,12 @@ export async function GET() {
 
   // One row per payout line; a period's Amount column adds up exactly to its
   // Net Revenue (driver pay + shares + retained + loss brought - loss carried).
-  let csv = 'Vehicle,Plate,Period,Status,Revenue,Vehicle Expenses,Company Expenses,Charged Expenses,Net Revenue,Line,Name,Share %,Amount\n';
+  let csv = 'Vehicle,Plate,Period,Status,Revenue,Vehicle Expenses,Company Expenses,Charged Expenses,Adjustments,Net Revenue,Line,Name,Share %,Amount\n';
   for (const calc of (data ?? []) as unknown as ExportRow[]) {
     const v = calc.vehicles;
     const head = [
       q(v ? `${v.make} ${v.model}` : 'Unknown'), q(v?.plate_number ?? ''), calc.period_start, calc.status,
-      calc.total_revenue, calc.total_expenses, calc.company_expenses, calc.charged_expenses, calc.net_revenue,
+      calc.total_revenue, calc.total_expenses, calc.company_expenses, calc.charged_expenses, calc.adjustments_total, calc.net_revenue,
     ].join(',');
     for (const d of calc.driver_pay_calculations ?? []) {
       csv += `${head},Driver pay,${q(d.drivers?.name ?? 'Unknown')},,${d.driver_pay_amount}\n`;
