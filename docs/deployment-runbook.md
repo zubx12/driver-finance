@@ -13,11 +13,12 @@ Background: the audit and plan live in the session notes; payout rules are in
 
 - [ ] Create a new Supabase project for staging (same region as production).
 - [ ] Copy `.env.example` to `.env.local` and fill in the **staging** URL and keys.
-- [ ] Install the Supabase CLI (`npm i -D supabase` or the standalone binary), then
-      `supabase link --project-ref <staging-ref>`.
-- [ ] `supabase db push` — applies all migrations in `supabase/migrations`.
-- [ ] `supabase test db` — must report all tests passing (same files as
-      `npm run test:db`, but on real Supabase).
+- [ ] Install the Supabase CLI (`npm i -D supabase`), then `npx supabase init`
+      (creates `supabase/config.toml`; answer "N" to the editor questions), then
+      `npx supabase login` and `npx supabase link --project-ref <staging-ref>`.
+- [ ] `npx supabase db push` — applies all migrations in `supabase/migrations`.
+- [ ] `npx supabase test db --linked` — must report all tests passing (same
+      files as `npm run test:db`, but on real Supabase).
 - [ ] Database > Extensions: enable **pg_cron**, then re-run the SQL in
       `supabase/migrations/20260930000003_salary_monthly_drafts_cron.sql`.
 - [ ] Authentication > Providers > Email: **disable "Allow new users to sign up"**.
@@ -34,6 +35,15 @@ Background: the audit and plan live in the session notes; payout rules are in
       needs a business decision, not a code fix).
 - [ ] Query 5: confirm every listed account is a real administrator. Note the
       emails of the real admins for step 2.
+- [ ] **Check production's migration history**, or `db push` may try to re-run
+      every migration from the first one. In the production SQL editor run
+      `select version from supabase_migrations.schema_migrations order by version;`
+      - Lists up to `20260903000006` → fine, `db push` applies only the new ones.
+      - Errors ("does not exist") or is empty → production was built by pasting
+        SQL. Before pushing, mark the already-applied migrations as applied:
+        `npx supabase migration repair --status applied 20260823185900 20260823190000 20260824000001 20260824000002 20260824000003 20260824000004 20260824000005 20260824000006 20260824000007 20260824000008 20260825000001 20260825000002 20260903000001 20260903000002 20260903000003 20260903000004 20260903000005 20260903000006`
+        (only after confirming in the Table Editor that their tables, e.g.
+        `payers` and `correction_requests`, exist in production).
 - [ ] Announce a short maintenance window: some users may need to sign in again.
 - [ ] Pause salary finalization until step 4 is complete.
 
