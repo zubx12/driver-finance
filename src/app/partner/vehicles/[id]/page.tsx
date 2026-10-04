@@ -10,8 +10,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Drawer, DrawerClose, DrawerContent, DrawerDescription, DrawerFooter, DrawerHeader, DrawerTitle, DrawerTrigger } from '@/components/ui/drawer';
 import { ChevronLeft, Car, Users, TrendingUp, TrendingDown, Receipt, Image as ImageIcon, MapPin, Fuel, Wrench, Banknote } from 'lucide-react';
 import Image from 'next/image';
+import { riyadhToday, monthLabel } from '@/lib/dates';
 
 type ExpenseWithDriver = { id: string; date: string; vehicleId: string; driverId: string; amount: number; category: string; paymentMethod: string; description?: string; receiptUrl?: string; driverName: string; };
+
+// Current month in Riyadh time (was hard-coded to August 2026).
+const currentPeriod = monthLabel(riyadhToday());
 
 export default function VehicleDetailsPage() {
   const params = useParams();
@@ -50,11 +54,11 @@ export default function VehicleDetailsPage() {
 
 
 
-      const vFin = await partnerService.getCalculatedFinancials('August 2026', v.id);
+      const vFin = await partnerService.getCalculatedFinancials(currentPeriod, v.id);
       setFinancials(vFin);
 
       // Load expenses with driver names
-      const vExp = await partnerService.getVehicleExpenses(v.id, 'August 2026');
+      const vExp = await partnerService.getVehicleExpenses(v.id, currentPeriod);
       setExpenses(vExp);
 
       setIsLoading(false);
@@ -111,7 +115,7 @@ export default function VehicleDetailsPage() {
         <TabsContent value="overview" className="space-y-6 animate-in fade-in">
           {/* PERFORMANCE */}
           <section className="space-y-3">
-            <h2 className="text-sm font-semibold uppercase tracking-wider text-zinc-500">August 2026 Performance</h2>
+            <h2 className="text-sm font-semibold uppercase tracking-wider text-zinc-500">{currentPeriod} Performance</h2>
             <div className="grid grid-cols-2 gap-3">
               <Card className="border-emerald-200/50 bg-emerald-50/50 dark:bg-emerald-950/20 dark:border-emerald-900/50 shadow-sm rounded-2xl">
                 <CardHeader className="p-4 pb-1 flex flex-row items-center justify-between space-y-0">

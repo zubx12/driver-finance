@@ -1,4 +1,3 @@
-import { monthOf, riyadhToday } from '@/lib/dates';
 /**
  * use-realtime-partner.ts
  *
@@ -11,6 +10,7 @@ import { monthOf, riyadhToday } from '@/lib/dates';
  */
 
 'use client';
+import { monthOf, riyadhToday } from '@/lib/dates';
 
 import { useEffect, useState, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';

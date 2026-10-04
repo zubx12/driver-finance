@@ -98,21 +98,38 @@ RETURNS TABLE (
   voucher_revenue numeric,
   total_expenses numeric,
   cash_expenses numeric,
-  net_revenue numeric
+  net_revenue numeric,
+  voucher_outstanding numeric,
+  voucher_collected numeric
 )
 LANGUAGE sql STABLE
 SET search_path = public, pg_temp
 AS $$
-  SELECT ds.vehicle_id,
-         coalesce(sum(ds.total_revenue), 0),
-         coalesce(sum(ds.cash_revenue), 0),
-         coalesce(sum(ds.voucher_revenue), 0),
-         coalesce(sum(ds.total_expenses), 0),
-         coalesce(sum(ds.cash_expenses), 0),
-         coalesce(sum(ds.net_revenue), 0)
-  FROM daily_summary ds
-  WHERE ds.summary_date BETWEEN p_start AND p_end
-  GROUP BY ds.vehicle_id
+  WITH totals AS (
+    SELECT ds.vehicle_id,
+           coalesce(sum(ds.total_revenue), 0) AS total_revenue,
+           coalesce(sum(ds.cash_revenue), 0) AS cash_revenue,
+           coalesce(sum(ds.voucher_revenue), 0) AS voucher_revenue,
+           coalesce(sum(ds.total_expenses), 0) AS total_expenses,
+           coalesce(sum(ds.cash_expenses), 0) AS cash_expenses,
+           coalesce(sum(ds.net_revenue), 0) AS net_revenue
+    FROM daily_summary ds
+    WHERE ds.summary_date BETWEEN p_start AND p_end
+    GROUP BY ds.vehicle_id
+  ),
+  vouchers AS (
+    SELECT r.vehicle_id,
+           coalesce(sum(r.amount) FILTER (WHERE r.payment_status = 'Outstanding'), 0) AS outstanding,
+           coalesce(sum(r.amount) FILTER (WHERE r.payment_status = 'Collected'), 0) AS collected
+    FROM rides r
+    WHERE r.payment_method = 'Voucher' AND r.ride_date BETWEEN p_start AND p_end
+    GROUP BY r.vehicle_id
+  )
+  SELECT t.vehicle_id, t.total_revenue, t.cash_revenue, t.voucher_revenue,
+         t.total_expenses, t.cash_expenses, t.net_revenue,
+         coalesce(v.outstanding, 0), coalesce(v.collected, 0)
+  FROM totals t
+  LEFT JOIN vouchers v ON v.vehicle_id = t.vehicle_id
 $$;
 
 CREATE OR REPLACE FUNCTION public.get_daily_totals(p_start date, p_end date)

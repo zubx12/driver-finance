@@ -3,7 +3,8 @@ import { useState, useEffect } from 'react';
 import dynamic from 'next/dynamic';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { DollarSign, Users, Activity } from 'lucide-react';
-import { getAdminDashboardKPIs } from '@/lib/data/dailySummary';
+import { getAdminDashboardKPIs, getDailyTotals } from '@/lib/data/dailySummary';
+import { riyadhToday, addDays, monthOf, previousMonth } from '@/lib/dates';
 import type { PeriodFinancials } from '@/lib/data/dailySummary';
 import { createClient } from '@/lib/supabase/client';
 import { AdminLiveBanner } from './AdminLiveBanner';
@@ -25,28 +26,18 @@ export default function AdminOverview() {
   useEffect(() => {
     async function load() {
       try {
+        const today = riyadhToday();
         const getDateRange = (p: Period) => {
-          const now = new Date();
-          const today = now.toLocaleDateString('en-CA', { timeZone: 'Asia/Riyadh' });
           switch (p) {
-            case 'this_week': {
-              const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-              return { start: weekAgo.toISOString().split('T')[0], end: today };
-            }
-            case 'this_month': {
-              return { start: `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`, end: today };
-            }
-            case 'last_month': {
-              const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-              const lastDay = new Date(now.getFullYear(), now.getMonth(), 0);
-              return { start: lastMonth.toISOString().split('T')[0], end: lastDay.toISOString().split('T')[0] };
-            }
+            case 'this_week': return { start: addDays(today, -6), end: today };
+            case 'this_month': return { start: monthOf(today).start, end: today };
+            case 'last_month': return previousMonth(today);
           }
         };
         const { start, end } = getDateRange(period);
 
         const supabase = createClient();
-        const startOf7Days = new Date(Date.now() - 6 * 86400000).toISOString().split('T')[0];
+        const startOf7Days = addDays(today, -6);
 
         // Parallelize all 4 data fetches
         const [vehicleKpis, activeCountResult, ridesResult, chartResult] = await Promise.all([
@@ -60,11 +51,7 @@ export default function AdminOverview() {
             .select('id, amount, ride_date, created_at, drivers(name)')
             .order('created_at', { ascending: false })
             .limit(5),
-          supabase
-            .from('daily_summary')
-            .select('summary_date, total_revenue, total_expenses')
-            .gte('summary_date', startOf7Days)
-            .order('summary_date', { ascending: true }),
+          getDailyTotals(startOf7Days, today),
         ]);
 
         const recentRides = ridesResult.data ?? [];
@@ -85,21 +72,12 @@ export default function AdminOverview() {
           activeDrivers: activeCountResult.count ?? 0,
         });
 
-        // FIX ADM-03: Group by date to avoid duplicate points
-        const grouped = (chartResult.data ?? []).reduce((acc: Record<string, { date: string; revenue: number; expenses: number }>, row: { summary_date: string; total_revenue: number; total_expenses: number }) => {
-          const key = row.summary_date;
-          if (!acc[key]) {
-            acc[key] = { 
-              date: new Date(key).toLocaleDateString('en-SA', { weekday: 'short' }), 
-              revenue: 0, 
-              expenses: 0 
-            };
-          }
-          acc[key].revenue += row.total_revenue;
-          acc[key].expenses += row.total_expenses;
-          return acc;
-        }, {});
-        setChartData(Object.values(grouped));
+        // One point per day, already summed across drivers and vehicles.
+        setChartData(chartResult.map(d => ({
+          date: new Date(`${d.date}T12:00:00Z`).toLocaleDateString('en-SA', { weekday: 'short', timeZone: 'UTC' }),
+          revenue: d.revenue,
+          expenses: d.expenses,
+        })));
       } catch (e) {
         console.error('Failed to load admin dashboard:', e);
       } finally {

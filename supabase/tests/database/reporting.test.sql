@@ -3,7 +3,7 @@
 -- Run with: supabase test db
 BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
-SELECT plan(15);
+SELECT plan(16);
 
 -- ─── Fixtures ────────────────────────────────────────────────────────────────
 INSERT INTO auth.users (id, email) VALUES
@@ -16,7 +16,8 @@ INSERT INTO auth.users (id, email) VALUES
 INSERT INTO public.vehicles (id, make, model, year, plate_number) VALUES
   ('a5000000-0000-0000-0000-00000000000a', 'Car', 'Shared', 2024, 'RP-A'),
   ('a5000000-0000-0000-0000-00000000000b', 'Car', 'Estimate', 2024, 'RP-B'),
-  ('a5000000-0000-0000-0000-00000000000c', 'Car', 'Busy', 2024, 'RP-C');
+  ('a5000000-0000-0000-0000-00000000000c', 'Car', 'Busy', 2024, 'RP-C'),
+  ('a5000000-0000-0000-0000-00000000000d', 'Car', 'Vouchers', 2024, 'RP-D');
 INSERT INTO public.partners (id, name, linked_auth_id) VALUES
   ('b5000000-0000-0000-0000-000000000001', 'Partner One', '00000000-0000-0000-0000-0000000000e1'),
   ('b5000000-0000-0000-0000-000000000002', 'Partner Two', '00000000-0000-0000-0000-0000000000e2'),
@@ -37,6 +38,10 @@ INSERT INTO public.rides (id, driver_id, vehicle_id, amount, payment_method, rid
   ('d5000000-0000-0000-0000-000000000001', 'c5000000-0000-0000-0000-000000000001', 'a5000000-0000-0000-0000-00000000000a', 100, 'Cash', public.app_today() - 20),
   ('d5000000-0000-0000-0000-000000000002', 'c5000000-0000-0000-0000-000000000001', 'a5000000-0000-0000-0000-00000000000a', 200, 'Cash', public.app_today()),
   ('d5000000-0000-0000-0000-000000000003', 'c5000000-0000-0000-0000-000000000002', 'a5000000-0000-0000-0000-00000000000b', 1000, 'Cash', public.app_today());
+-- Two voucher rides yesterday on vehicle D: one still owed, one collected.
+INSERT INTO public.rides (driver_id, vehicle_id, amount, payment_method, payment_status, ride_date) VALUES
+  ('c5000000-0000-0000-0000-000000000001', 'a5000000-0000-0000-0000-00000000000d', 40, 'Voucher', 'Outstanding', public.app_today() - 1),
+  ('c5000000-0000-0000-0000-000000000001', 'a5000000-0000-0000-0000-00000000000d', 25, 'Voucher', 'Collected', public.app_today() - 1);
 
 -- 1,200 daily rows on vehicle C: more than the API's 1,000-row page.
 INSERT INTO public.daily_summary (summary_date, driver_id, vehicle_id, total_revenue, total_expenses, net_revenue)
@@ -78,6 +83,9 @@ SELECT is((SELECT total_revenue FROM public.get_period_financials('2020-01-01', 
   'H3: totals over 1,200 rows are complete (computed in the database)');
 SELECT is((SELECT total_revenue FROM public.get_daily_totals(public.app_today(), public.app_today())), 1200.00::numeric,
   'daily totals add every vehicle for the day');
+SELECT is((SELECT voucher_outstanding || '/' || voucher_collected FROM public.get_period_financials(public.app_today() - 1, public.app_today() - 1)
+           WHERE vehicle_id = 'a5000000-0000-0000-0000-00000000000d'), '40.00/25.00',
+  'M7: outstanding and collected vouchers come from each ride''s payment status');
 
 -- ─── Partner Three: share follows the payout through every stage ─────────────
 SET LOCAL request.jwt.claims = '{"sub":"00000000-0000-0000-0000-0000000000e3","role":"authenticated","app_metadata":{"role":"partner"}}';

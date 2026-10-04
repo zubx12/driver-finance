@@ -13,6 +13,7 @@ import { Car, ChevronRight, TrendingUp, TrendingDown, Clock, Banknote, Wallet, A
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, Cell } from 'recharts';
 import { useRealtimePartner } from '@/lib/realtime/use-realtime-partner';
 import { SalaryToast } from '@/components/partner/SalaryToast';
+import { riyadhToday, monthLabel, parseMonthLabel, previousMonth } from '@/lib/dates';
 
 // Custom tooltip for Recharts
 const CustomTooltip = ({ active, payload, label }: any) => {
@@ -50,6 +51,31 @@ const TrendIndicator = ({ value }: { value: number }) => {
   );
 };
 
+/** One row of partner_period_summary: the caller's own share for a vehicle. */
+interface PartnerShareRow {
+  vehicle_id: string;
+  status: string;
+  my_share: number | null;
+  ownership_percentage: number | null;
+}
+
+const SHARE_LABEL: Record<string, string> = {
+  estimate: 'Your Estimated Share',
+  draft: 'Your Share (draft)',
+  finalized: 'Your Share (final)',
+  paid: 'Your Share (paid)',
+  mixed: 'Your Share',
+  unavailable: 'Your Share',
+};
+const SHARE_NOTE: Record<string, string> = {
+  estimate: 'Live estimate after driver pay and expenses. It becomes final when the office finalizes the month.',
+  draft: 'Calculated by the office. Not final yet.',
+  finalized: 'Final for this month. Payment is pending.',
+  paid: 'Paid for this month.',
+  mixed: 'Some vehicles are final for this month, others are still estimates.',
+  unavailable: 'Not available yet: the office needs to check a vehicle\'s ownership setup.',
+};
+
 export default function PartnerDashboard() {
   const [partner, setPartner] = useState<Partner | null>(null);
   const [vehicles, setVehicles] = useState<PartnerVehicle[]>([]);
@@ -58,11 +84,9 @@ export default function PartnerDashboard() {
   const [momFinancials, setMomFinancials] = useState<MoMFinancials | null>(null);
   const [vehicleFinancials, setVehicleFinancials] = useState<Record<string, CalculatedFinancials>>({});
   const [payouts, setPayouts] = useState<any[]>([]);
+  const [shares, setShares] = useState<PartnerShareRow[]>([]);
   
-  const [period, setPeriod] = useState(() => {
-    const now = new Date();
-    return now.toLocaleString('en-US', { month: 'long', year: 'numeric' });
-  });
+  const [period, setPeriod] = useState(() => monthLabel(riyadhToday()));
   const [isLoading, setIsLoading] = useState(true);
   const [drawerOpen, setDrawerOpen] = useState(false);
 
@@ -101,6 +125,16 @@ export default function PartnerDashboard() {
         }
         setVehicleFinancials(vFinRecord);
 
+        // The partner's own share from the payout engine (estimate, draft,
+        // finalized or paid), so it matches what is actually paid.
+        const range = parseMonthLabel(period);
+        if (range) {
+          const { data: shareData, error: shareErr } = await createClient()
+            .rpc('partner_period_summary', { p_month: range.start });
+          if (shareErr) throw shareErr;
+          setShares((shareData ?? []) as PartnerShareRow[]);
+        }
+
         const supabase = createClient();
         const { data: payoutData } = await supabase
           .from('partner_settlement_view')
@@ -137,15 +171,12 @@ export default function PartnerDashboard() {
     );
   }
 
-  // Calculate my total share across all vehicles
-  let myTotalShare = 0;
-  vehicles.forEach(v => {
-    const vFin = vehicleFinancials[v.id];
-    const pct = ownerships[v.id]?.percentage || 0;
-    if (vFin) {
-      myTotalShare += vFin.netRevenue * (pct / 100);
-    }
-  });
+  // The partner's share as calculated by the payout engine (driver pay,
+  // company expenses and earlier losses already deducted).
+  const shareByVehicle = new Map(shares.map(s => [s.vehicle_id, s]));
+  const myTotalShare = shares.reduce((sum, s) => sum + Number(s.my_share ?? 0), 0);
+  const statuses = [...new Set(shares.map(s => s.status))];
+  const shareStatus = statuses.length === 1 ? statuses[0] : statuses.length > 1 ? 'mixed' : 'estimate';
 
   const fin = momFinancials?.current;
   const deltas = momFinancials?.deltas;
@@ -153,9 +184,8 @@ export default function PartnerDashboard() {
   // Prepare chart data
   const chartData = vehicles.map(v => {
     const vFin = vehicleFinancials[v.id];
-    const pct = ownerships[v.id]?.percentage || 0;
     const netRev = vFin?.netRevenue || 0;
-    const share = netRev * (pct / 100);
+    const share = Number(shareByVehicle.get(v.id)?.my_share ?? 0);
     
     return {
       name: `${v.make} ${v.model}`,
@@ -164,11 +194,11 @@ export default function PartnerDashboard() {
     };
   });
 
-  const periods = Array.from({ length: 6 }, (_, i) => {
-    const d = new Date();
-    d.setMonth(d.getMonth() - i);
-    return d.toLocaleString('en-US', { month: 'long', year: 'numeric' });
-  });
+  // This month and the five before it (Riyadh calendar).
+  const periods: string[] = [];
+  for (let day = riyadhToday(); periods.length < 6; day = previousMonth(day).start) {
+    periods.push(monthLabel(day));
+  }
 
   return (
     <>
@@ -242,12 +272,13 @@ export default function PartnerDashboard() {
           <div>
             <div className="flex items-center gap-2 mb-2 text-indigo-200">
               <Banknote className="h-5 w-5" />
-              <div className="text-xs font-semibold uppercase tracking-wider">Your Estimated Share</div>
+              <div className="text-xs font-semibold uppercase tracking-wider">{SHARE_LABEL[shareStatus] ?? 'Your Share'}</div>
             </div>
             <div className="text-4xl md:text-5xl font-extrabold tracking-tight">
               <span className="text-indigo-300 text-2xl font-medium mr-2">SAR</span>
               {myTotalShare.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}
             </div>
+            <p className="text-xs text-indigo-200 mt-2 max-w-md">{SHARE_NOTE[shareStatus] ?? ''}</p>
           </div>
         </CardContent>
       </Card>
@@ -271,7 +302,7 @@ export default function PartnerDashboard() {
             </div>
             <div className="flex items-center gap-2">
               <div className="bg-white/20 px-2 py-0.5 rounded-md text-[10px] font-medium backdrop-blur-sm">
-                {deltas?.totalRevenuePct! > 0 ? '+' : ''}{deltas?.totalRevenuePct.toFixed(1)}% MoM
+                {(deltas?.totalRevenuePct ?? 0) > 0 ? '+' : ''}{(deltas?.totalRevenuePct ?? 0).toFixed(1)}% MoM
               </div>
             </div>
             
@@ -335,7 +366,9 @@ export default function PartnerDashboard() {
                 <div className="text-[10px] font-semibold text-amber-800 dark:text-amber-400 uppercase tracking-wider">Driver Cash Out.</div>
               </div>
               <div className="text-xl font-bold text-amber-900 dark:text-amber-300">
-                SAR {fin?.driverCashOutstanding.toLocaleString()}
+                {fin?.cashTracked
+                  ? <>SAR {fin.driverCashOutstanding.toLocaleString()}</>
+                  : <span className="text-sm font-medium" title="Cash handovers are recorded on drivers' phones and are not on the server yet.">Not available yet</span>}
               </div>
             </CardContent>
           </Card>
@@ -365,8 +398,7 @@ export default function PartnerDashboard() {
         <div className="flex overflow-x-auto snap-x snap-mandatory gap-4 pb-4 -mx-4 px-4 sm:mx-0 sm:px-0 sm:grid sm:grid-cols-2 lg:grid-cols-3 hide-scrollbar">
           {vehicles.map(v => {
             const vOwn = ownerships[v.id];
-            const vFin = vehicleFinancials[v.id];
-            const vShare = vFin ? (vFin.netRevenue * ((vOwn?.percentage || 0) / 100)) : 0;
+            const vShare = Number(shareByVehicle.get(v.id)?.my_share ?? 0);
 
             return (
               <Link key={v.id} href={`/partner/vehicles/${v.id}`} className="block group shrink-0 w-[85vw] sm:w-auto snap-center">
