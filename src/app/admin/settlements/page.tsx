@@ -1,10 +1,10 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Wallet, CheckCircle2, Search, Clock, FileText, X } from 'lucide-react';
+import { Wallet, CheckCircle2, Search, Clock, FileText, X, ChevronLeft, ChevronRight } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { Drawer, DrawerClose, DrawerContent, DrawerDescription, DrawerFooter, DrawerHeader, DrawerTitle } from '@/components/ui/drawer';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -25,10 +25,15 @@ interface Settlement {
   ownership_percentage: number;
 }
 
+const PAGE_SIZE = 50;
+
 export default function AdminSettlementsPage() {
   const [settlements, setSettlements] = useState<Settlement[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [page, setPage] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
   
   // Payment drawer state
   const [payDrawerOpen, setPayDrawerOpen] = useState(false);
@@ -37,23 +42,40 @@ export default function AdminSettlementsPage() {
   const [payNotes, setPayNotes] = useState('');
   const [isPaying, setIsPaying] = useState(false);
 
+  // Debounce search
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   useEffect(() => {
-    loadSettlements();
-  }, []);
+    debounceRef.current = setTimeout(() => {
+      setDebouncedSearch(searchQuery);
+      setPage(1);
+    }, 300);
+    return () => clearTimeout(debounceRef.current);
+  }, [searchQuery]);
 
-  async function loadSettlements() {
+  const loadSettlements = useCallback(async () => {
     setLoading(true);
     const supabase = createClient();
-    const { data, error } = await supabase
-      .from('partner_settlement_view')
-      .select('*')
-      .order('period_start', { ascending: false });
+    const offset = (page - 1) * PAGE_SIZE;
 
+    let query = supabase
+      .from('partner_settlement_view')
+      .select('*', { count: 'exact' })
+      .order('period_start', { ascending: false })
+      .range(offset, offset + PAGE_SIZE - 1);
+
+    if (debouncedSearch) {
+      query = query.or(`partner_name.ilike.%${debouncedSearch}%,vehicle_name.ilike.%${debouncedSearch}%,payment_reference.ilike.%${debouncedSearch}%`);
+    }
+
+    const { data, error, count } = await query;
     if (!error && data) {
       setSettlements(data);
+      setTotalCount(count ?? 0);
     }
     setLoading(false);
-  }
+  }, [page, debouncedSearch]);
+
+  useEffect(() => { loadSettlements(); }, [loadSettlements]);
 
   const handlePayClick = (s: Settlement) => {
     setSelectedSettlement(s);
@@ -102,14 +124,10 @@ export default function AdminSettlementsPage() {
 
   const fmt = (n: number) => n.toLocaleString('en-SA', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   
-  const filtered = settlements.filter(s => 
-    (s.partner_name?.toLowerCase() || '').includes(searchQuery.toLowerCase()) ||
-    (s.vehicle_name?.toLowerCase() || '').includes(searchQuery.toLowerCase()) ||
-    (s.payment_reference?.toLowerCase() || '').includes(searchQuery.toLowerCase())
-  );
-
-  const pending = filtered.filter(s => s.status === 'pending');
-  const paid = filtered.filter(s => s.status === 'paid');
+  // Search is now server-side — no client-side filtering needed
+  const pending = settlements.filter(s => s.status === 'pending');
+  const paid = settlements.filter(s => s.status === 'paid');
+  const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
 
   const renderCard = (s: Settlement, isPending: boolean) => (
     <Card key={s.id} className="border-zinc-100 dark:border-zinc-800 shadow-sm overflow-hidden flex flex-col h-full">
@@ -212,6 +230,23 @@ export default function AdminSettlementsPage() {
           )}
         </TabsContent>
       </Tabs>
+
+      {/* Pagination Controls */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between">
+          <p className="text-sm text-zinc-500">
+            Page {page} of {totalPages} · {totalCount.toLocaleString()} total
+          </p>
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage(p => p - 1)} className="gap-1">
+              <ChevronLeft className="h-4 w-4" /> Previous
+            </Button>
+            <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setPage(p => p + 1)} className="gap-1">
+              Next <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* Payment Drawer */}
       <Drawer open={payDrawerOpen} onOpenChange={setPayDrawerOpen}>

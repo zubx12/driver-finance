@@ -2,16 +2,68 @@
 
 import { useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { db } from '@/lib/db/dexie';
+import { db, type SyncStatus } from '@/lib/db/dexie';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Car, Receipt, Clock, CheckCircle2, Wallet, Building, Circle, Flag, PencilLine } from 'lucide-react';
+import { Car, Receipt, Clock, CheckCircle2, Wallet, Building, Circle, Flag, PencilLine, AlertCircle } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { CorrectionRequestModal } from '@/components/driver/CorrectionRequestModal';
 import { SkeletonCard, EmptyState } from '@/components/ui/skeleton-card';
-import { useDriver } from '@/contexts/DriverContext';
 import { createClient } from '@/lib/supabase/client';
+import { retryEntry, discardEntry } from '@/lib/data/syncQueue';
+import { runSync } from '@/lib/sync/sync-engine';
+import { useMyExpenses, useMyRides } from '@/lib/db/use-my-entries';
+
+/** Local ids equal server ids; older app versions prefixed loaded entries with srv-. */
+const serverId = (id: string) => id.replace(/^srv-/, '');
+
+/** Upload state of one entry, with the server's reason and actions when it was rejected. */
+function SyncBadge({ kind, entry }: {
+  kind: 'ride' | 'expense';
+  entry: { id: string; syncStatus: SyncStatus; lastError?: string };
+}) {
+  if (entry.syncStatus === 'synced') {
+    return (
+      <span className="inline-flex items-center gap-1 font-medium text-emerald-600">
+        <CheckCircle2 className="h-3 w-3" /> Uploaded
+      </span>
+    );
+  }
+  if (entry.syncStatus === 'pending') {
+    return (
+      <span className="inline-flex items-center gap-1 font-medium text-amber-600" title={entry.lastError}>
+        <Clock className="h-3 w-3" /> {entry.lastError ? 'Waiting to retry' : 'Waiting to upload'}
+      </span>
+    );
+  }
+  return (
+    <span className="flex flex-col items-end gap-1 text-rose-600">
+      <span className="inline-flex items-center gap-1 font-semibold">
+        <AlertCircle className="h-3 w-3" /> Not accepted
+      </span>
+      {entry.lastError && <span className="max-w-[16rem] text-right normal-case">{entry.lastError}</span>}
+      <span className="flex gap-3">
+        <button
+          className="underline"
+          onClick={async () => { await retryEntry(kind, entry.id); runSync(true); }}
+        >
+          Retry
+        </button>
+        <button
+          className="underline"
+          onClick={async () => {
+            if (confirm('Discard this entry? It has not been saved on the server and will be deleted from this phone.')) {
+              await discardEntry(kind, entry.id);
+            }
+          }}
+        >
+          Discard
+        </button>
+      </span>
+    </span>
+  );
+}
 
 function groupByDate<T extends { date: string }>(items: T[]): Record<string, T[]> {
   return items.reduce((acc, item) => {
@@ -23,7 +75,6 @@ function groupByDate<T extends { date: string }>(items: T[]): Record<string, T[]
 }
 
 export default function DriverHistoryPage() {
-  const { driverId, driverName } = useDriver();
   const [rideFilter, setRideFilter] = useState<'ALL' | 'CASH' | 'VOUCHER'>('ALL');
   const [dateFilter, setDateFilter] = useState<string>('All Time');
   const [collectingId, setCollectingId] = useState<string | null>(null);
@@ -42,41 +93,51 @@ export default function DriverHistoryPage() {
     setEditAmount(String(item.amount));
   };
 
+  // Same-day edit. Synced entries are changed on the server first (the
+  // database only allows today's entries); entries still on the phone are
+  // changed locally and upload with the new amount.
   const handleEditSave = async (type: 'ride' | 'expense') => {
     if (!editingId) return;
+    const id = editingId;
     const newAmount = parseFloat(editAmount);
-    if (isNaN(newAmount) || newAmount <= 0) return;
-    
-    if (type === 'ride') {
-      await db.rides.update(editingId, { amount: newAmount });
-    } else {
-      await db.expenses.update(editingId, { amount: newAmount });
-    }
     setEditingId(null);
+    if (isNaN(newAmount) || newAmount <= 0) return;
+
+    const rec = type === 'ride' ? await db.rides.get(id) : await db.expenses.get(id);
+    if (!rec || rec.amount === newAmount) return;
+
+    if (rec.syncStatus === 'synced') {
+      const { data, error } = await createClient()
+        .from(type === 'ride' ? 'rides' : 'expenses')
+        .update({ amount: newAmount, updated_at: new Date().toISOString() })
+        .eq('id', serverId(id))
+        .select('id');
+      if (error || !data?.length) {
+        alert(error?.message ?? 'This entry can no longer be changed from the app. Use Flag to ask the office for a correction.');
+        return;
+      }
+    }
+
+    if (type === 'ride') await db.rides.update(id, { amount: newAmount });
+    else await db.expenses.update(id, { amount: newAmount });
   };
 
   // Mark a voucher ride as collected by this driver
   const markVoucherCollected = async (rideId: string) => {
     setCollectingId(rideId);
     try {
-      // Update Dexie locally first for instant UI feedback
-      await db.rides.update(rideId, { paymentStatus: 'Collected' });
-
-      // Also update Supabase if it's a synced record
-      if (rideId.startsWith('srv-')) {
-        const serverId = rideId.replace('srv-', '');
-        const supabase = createClient();
-        const { data: { user } } = await supabase.auth.getUser();
-        await supabase.from('rides').update({
-          payment_status: 'Collected',
-          collected_by: user?.id,
-          collected_by_name: driverName || 'Driver',
-          collected_by_role: 'driver',
-          collected_at: new Date().toISOString(),
-        }).eq('id', serverId);
+      // Synced records: the server is the source of truth, so update it first.
+      // collect_voucher only changes the collection fields (see migration 20260930000001).
+      // Rides still on the phone upload as collected.
+      const ride = await db.rides.get(rideId);
+      if (ride?.syncStatus === 'synced') {
+        const { error } = await createClient().rpc('collect_voucher', { p_ride_id: serverId(rideId) });
+        if (error) throw new Error(error.message);
       }
+      await db.rides.update(rideId, { paymentStatus: 'Collected' });
     } catch (err) {
       console.error('Failed to mark as collected:', err);
+      alert(`Could not mark voucher as collected: ${err instanceof Error ? err.message : 'unknown error'}`);
     }
     setCollectingId(null);
   };
@@ -84,8 +145,8 @@ export default function DriverHistoryPage() {
   const todayStr = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Riyadh' });
 
   
-  const allRides = useLiveQuery(() => db.rides.orderBy('createdAt').reverse().toArray(), []);
-  const allExpenses = useLiveQuery(() => db.expenses.orderBy('createdAt').reverse().toArray(), []);
+  const allRides = useMyRides();
+  const allExpenses = useMyExpenses();
   const payers = useLiveQuery(() => db.payers.toArray(), []);
 
   const filterByDate = (date: string) => {
@@ -219,7 +280,7 @@ export default function DriverHistoryPage() {
                             ) : (
                               <div className="flex items-center gap-2">
                                 <p className="font-semibold">{ride.amount.toFixed(2)} SAR</p>
-                                {ride.date === todayStr && ride.syncStatus === 'pending' && (
+                                {ride.date === todayStr && ride.syncStatus !== 'failed' && (
                                   <button onClick={() => handleEditStart(ride)} className="p-1 text-zinc-400 hover:text-indigo-600">
                                     <PencilLine className="h-3.5 w-3.5" />
                                   </button>
@@ -274,13 +335,13 @@ export default function DriverHistoryPage() {
                           )}
                           {ride.date !== todayStr && ride.syncStatus === 'synced' && (
                             <button
-                              onClick={() => setCorrectionTarget({ type: 'ride', id: ride.id, date: ride.date, amount: ride.amount })}
+                              onClick={() => setCorrectionTarget({ type: 'ride', id: serverId(ride.id), date: ride.date, amount: ride.amount })}
                               className="flex items-center gap-0.5 text-amber-500 hover:text-amber-600 font-medium"
                             >
                               <Flag className="h-3 w-3" /> Flag
                             </button>
                           )}
-                          <span>Sync: {ride.syncStatus}</span>
+                          <SyncBadge kind="ride" entry={ride} />
                         </div>
                       </div>
                     </CardContent>
@@ -325,7 +386,7 @@ export default function DriverHistoryPage() {
                             ) : (
                               <div className="flex items-center gap-2">
                                 <p className="font-semibold text-lg">{exp.amount.toFixed(2)} SAR</p>
-                                {exp.date === todayStr && exp.syncStatus === 'pending' && (
+                                {exp.date === todayStr && exp.syncStatus !== 'failed' && (
                                   <button onClick={() => handleEditStart(exp)} className="p-1 text-zinc-400 hover:text-indigo-600">
                                     <PencilLine className="h-3.5 w-3.5" />
                                   </button>
@@ -346,16 +407,13 @@ export default function DriverHistoryPage() {
                          <div className="flex items-center gap-2">
                            {exp.date !== todayStr && exp.syncStatus === 'synced' && (
                              <button
-                               onClick={() => setCorrectionTarget({ type: 'expense', id: exp.id, date: exp.date, amount: exp.amount })}
+                               onClick={() => setCorrectionTarget({ type: 'expense', id: serverId(exp.id), date: exp.date, amount: exp.amount })}
                                className="flex items-center gap-0.5 text-amber-500 hover:text-amber-600 font-medium"
                              >
                                <Flag className="h-3 w-3" /> Flag
                              </button>
                            )}
-                           <span className="inline-flex items-center gap-1 font-medium">
-                             {exp.syncStatus === 'pending' ? <Clock className="h-3 w-3" /> : <CheckCircle2 className="h-3 w-3 text-emerald-500" />}
-                             {exp.syncStatus}
-                           </span>
+                           <SyncBadge kind="expense" entry={exp} />
                          </div>
                        </div>
                     </CardContent>

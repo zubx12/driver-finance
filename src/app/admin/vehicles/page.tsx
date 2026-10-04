@@ -1,16 +1,27 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Drawer, DrawerClose, DrawerContent, DrawerDescription, DrawerFooter, DrawerHeader, DrawerTitle, DrawerTrigger } from '@/components/ui/drawer';
 import { Car, Plus, Settings, UserPlus, Loader2, User } from 'lucide-react';
 import Link from 'next/link';
 
+interface VehiclePartner { id: string; percentage: number; partners: { name: string } | null; }
+interface VehicleDriver { id: string; name: string; username: string | null; }
+interface DriverCompensation { compensation_type: string; commission_percentage: number | null; fixed_salary_amount: number | null; }
+interface Vehicle {
+  id: string; make: string; model: string; year: number; plate_number: string; status: string;
+  drivers: VehicleDriver[] | null;
+  vehicle_partners: VehiclePartner[];
+  driver_compensation: DriverCompensation[];
+}
+interface DriverOption { id: string; name: string; username: string | null; }
+
 export default function AdminVehiclesPage() {
-  const [vehicles, setVehicles] = useState<any[]>([]);
-  const [partners, setPartners] = useState<any[]>([]);
-  const [allDrivers, setAllDrivers] = useState<any[]>([]);
+  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+  const [allDrivers, setAllDrivers] = useState<DriverOption[]>([]);
+  const [driversLoaded, setDriversLoaded] = useState(false);
   const [loading, setLoading] = useState(true);
   const [assigningVehicle, setAssigningVehicle] = useState<string | null>(null);
   
@@ -21,22 +32,25 @@ export default function AdminVehiclesPage() {
   const [year, setYear] = useState('');
   const [plateNumber, setPlateNumber] = useState('');
 
-  const loadVehicles = () => {
+  // Single API call — vehicles-list-full returns embedded drivers, partners, compensation
+  const loadVehicles = useCallback(async () => {
     setLoading(true);
-    Promise.all([
-      fetch('/api/admin/vehicles-list-full').then(r => r.json()),
-      fetch('/api/admin/partners-list').then(r => r.json()),
-      fetch('/api/admin/drivers-list-full').then(r => r.json()),
-    ]).then(([vehiclesData, partnersData, driversData]) => {
-      if (Array.isArray(vehiclesData)) setVehicles(vehiclesData);
-      if (Array.isArray(partnersData)) setPartners(partnersData);
-      if (Array.isArray(driversData)) setAllDrivers(driversData);
-    }).finally(() => setLoading(false));
-  };
-
-  useEffect(() => {
-    loadVehicles();
+    const res = await fetch('/api/admin/vehicles-list-full');
+    const data = await res.json();
+    if (Array.isArray(data)) setVehicles(data);
+    setLoading(false);
   }, []);
+
+  useEffect(() => { loadVehicles(); }, [loadVehicles]);
+
+  // Lazy-load drivers list only when user needs to assign a driver
+  const ensureDriversLoaded = useCallback(async () => {
+    if (driversLoaded) return;
+    const res = await fetch('/api/admin/drivers-list-full?limit=100');
+    const json = await res.json();
+    setAllDrivers(json.data ?? json ?? []);
+    setDriversLoaded(true);
+  }, [driversLoaded]);
 
   const assignDriver = async (vehicleId: string, driverId: string | null) => {
     setAssigningVehicle(vehicleId);
@@ -45,7 +59,7 @@ export default function AdminVehiclesPage() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ vehicle_id: vehicleId, driver_id: driverId || null }),
     });
-    loadVehicles();
+    await loadVehicles();
     setAssigningVehicle(null);
   };
 
@@ -187,6 +201,7 @@ export default function AdminVehiclesPage() {
                   <select
                     value={v.drivers?.[0]?.id || ''}
                     disabled={assigningVehicle === v.id}
+                    onFocus={ensureDriversLoaded}
                     onChange={(e) => assignDriver(v.id, e.target.value || null)}
                     className="w-full h-9 px-3 rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-sm font-medium text-zinc-800 dark:text-zinc-200 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all disabled:opacity-50 appearance-none cursor-pointer"
                     style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%239ca3af' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 10px center' }}
@@ -215,7 +230,7 @@ export default function AdminVehiclesPage() {
                     <div className="flex items-center gap-2 mt-0.5">
                       {v.vehicle_partners && v.vehicle_partners.length > 0 ? (
                         <div className="flex -space-x-2">
-                          {v.vehicle_partners.map((vp: any, idx: number) => {
+                          {v.vehicle_partners.map((vp: VehiclePartner, idx: number) => {
                             const colors = ['bg-indigo-100 text-indigo-700 border-indigo-200', 'bg-rose-100 text-rose-700 border-rose-200', 'bg-amber-100 text-amber-700 border-amber-200'];
                             const color = colors[idx % colors.length];
                             const initial = vp.partners?.name ? vp.partners.name.substring(0, 2).toUpperCase() : 'P';

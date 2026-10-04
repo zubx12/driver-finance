@@ -1,4 +1,5 @@
 'use client';
+import { riyadhToday } from '@/lib/dates';
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -8,9 +9,11 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ArrowLeft, CheckCircle2, Building, ArrowUpFromLine } from 'lucide-react';
 import Link from 'next/link';
+import { useDriver } from '@/contexts/DriverContext';
 
 export default function CashHandoverPage() {
   const router = useRouter();
+  const { driverId, vehicleId } = useDriver();
   
   const [amount, setAmount] = useState('');
   const [handedTo, setHandedTo] = useState('Office Manager');
@@ -27,16 +30,20 @@ export default function CashHandoverPage() {
     
     const handover = {
       id: crypto.randomUUID(),
-      date: new Date().toISOString().split('T')[0],
+      date: riyadhToday(),
       amount: Number(amount),
       handedTo,
       reference,
       notes,
+      // Uploads under this driver only; the office confirms it on the server.
+      driverId,
+      vehicleId: vehicleId ?? undefined,
       syncStatus: 'pending' as const,
       createdAt: Date.now(),
     };
 
     await db.cashHandovers.add(handover);
+    import('@/lib/sync/sync-engine').then(({ runSync }) => runSync()).catch(() => {});
     
     setIsSubmitting(false);
     router.push('/driver/cash');
@@ -58,7 +65,7 @@ export default function CashHandoverPage() {
             <Building className="text-blue-500 shrink-0 mt-0.5" />
             <div>
               <h3 className="text-sm font-semibold text-blue-800 dark:text-blue-300">Office Handover</h3>
-              <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">Record physical cash handed over to the company office. This will instantly reduce your Expected Cash in Hand.</p>
+              <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">Record physical cash handed over to the company office. The office confirms it once the cash is received.</p>
             </div>
           </div>
 

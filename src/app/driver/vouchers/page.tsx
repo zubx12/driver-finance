@@ -6,9 +6,10 @@ import { db } from '@/lib/db/dexie';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ArrowLeft, Building, ChevronDown, ChevronUp, FileText } from 'lucide-react';
 import Link from 'next/link';
+import { useMyRides } from '@/lib/db/use-my-entries';
 
 export default function VouchersPage() {
-  const allRides = useLiveQuery(() => db.rides.toArray(), [], []);
+  const allRides = useMyRides() ?? [];
   const payers = useLiveQuery(() => db.payers.toArray(), [], []);
 
   const [expandedPayerId, setExpandedPayerId] = useState<string | null>(null);

@@ -1,8 +1,8 @@
+import { parseMonthLabel } from '@/lib/dates';
 import { 
   Partner, 
   PartnerVehicle, 
-  OwnershipArrangement, 
-  Settlement, 
+  OwnershipArrangement,
   Driver,
         } from '../types/partner';
 
@@ -25,6 +25,12 @@ export interface CalculatedFinancials {
   voucherOutstanding: number;
   cashHandedOver: number;
   driverCashOutstanding: number;
+  /**
+   * False while cash handovers are only stored on drivers' phones: the server
+   * cannot know what was handed over, so cashHandedOver and
+   * driverCashOutstanding are not real figures and must not be shown.
+   */
+  cashTracked?: boolean;
 }
 
 export interface MoMDeltas {
@@ -96,12 +102,6 @@ export const partnerService = {
   },
 
 
-  async getSettlements(partnerId: string): Promise<Settlement[]> {
-    // We would need a dedicated query for partner settlements, but for now we'll fetch all 
-    // vehicles for this partner, then fetch calculations for those vehicles, and map them.
-    // In a real scenario, we'd add a getSettlementsForPartner query to salaryCalculations.ts.
-    return []; // TODO: Implement real settlement fetching for partner
-  },
 
   async getAllDrivers(): Promise<Driver[]> {
     const drivers = await getAdminDrivers();
@@ -118,12 +118,10 @@ export const partnerService = {
     let start = '2000-01-01';
     let end = '2100-12-31';
     
-    if (period && period !== 'All') {
-      const d = new Date(period + ' 1');
-      if (!isNaN(d.getTime())) {
-        start = new Date(d.getFullYear(), d.getMonth(), 1).toISOString().split('T')[0];
-        end = new Date(d.getFullYear(), d.getMonth() + 1, 0).toISOString().split('T')[0];
-      }
+    const range = period && period !== 'All' ? parseMonthLabel(period) : null;
+    if (range) {
+      start = range.start;
+      end = range.end;
     }
     
     const expenses = await getVehicleExpenses(vehicleId, start, end);
@@ -134,7 +132,7 @@ export const partnerService = {
       return {
         id: e.id,
         date: e.expense_date,
-        vehicleId: e.vehicle_id,
+        vehicleId: e.vehicle_id ?? vehicleId, // queried by vehicle, so always set
         driverId: e.driver_id,
         driverName: d?.name || 'Unknown Driver',
         amount: e.amount,
@@ -157,13 +155,7 @@ export const partnerService = {
   
   // Helper to parse "Month YYYY" into start and end dates
   _parsePeriod(period: string): { start: string; end: string } {
-    if (period === 'All') return { start: '2000-01-01', end: '2100-12-31' };
-    const d = new Date(period + ' 1');
-    if (isNaN(d.getTime())) return { start: '2000-01-01', end: '2100-12-31' };
-    
-    const start = new Date(d.getFullYear(), d.getMonth(), 1).toISOString().split('T')[0];
-    const end = new Date(d.getFullYear(), d.getMonth() + 1, 0).toISOString().split('T')[0];
-    return { start, end };
+    return parseMonthLabel(period) ?? { start: '2000-01-01', end: '2100-12-31' };
   },
 
   async getCalculatedFinancials(period: string, vehicleId?: string, driverId?: string): Promise<CalculatedFinancials> {
@@ -186,10 +178,13 @@ export const partnerService = {
       totalExpenses: fins.totalExpenses,
       cashExpenses: fins.cashExpenses,
       netRevenue: fins.netRevenue,
-      voucherCollected: 0, // Requires collections table
-      voucherOutstanding: fins.voucherRevenue, // Assuming 0 collected for now
-      cashHandedOver: 0, // Requires cash_handovers table
-      driverCashOutstanding: fins.cashRevenue - fins.cashExpenses // Simplified without handovers/adjustments
+      // From each voucher ride's payment status (computed in the database).
+      voucherCollected: fins.voucherCollected,
+      voucherOutstanding: fins.voucherOutstanding,
+      // Cash handovers are not synced to the server yet (see cashTracked).
+      cashHandedOver: 0,
+      driverCashOutstanding: 0,
+      cashTracked: false,
     };
   },
 

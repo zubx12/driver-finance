@@ -1,8 +1,8 @@
 'use client';
+import { riyadhToday } from '@/lib/dates';
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '@/lib/db/dexie';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,13 +10,14 @@ import { Label } from '@/components/ui/label';
 import { ArrowLeft, CheckCircle2, AlertTriangle, Scale } from 'lucide-react';
 import Link from 'next/link';
 import { calculateCashInHand } from '@/lib/finance-service';
+import { useMyExpenses, useMyHandovers, useMyRides } from '@/lib/db/use-my-entries';
 
 export default function CashReconciliationPage() {
   const router = useRouter();
   
-  const allRides = useLiveQuery(() => db.rides.toArray(), [], []);
-  const allExpenses = useLiveQuery(() => db.expenses.toArray(), [], []);
-  const allHandovers = useLiveQuery(() => db.cashHandovers.toArray(), [], []);
+  const allRides = useMyRides() ?? [];
+  const allExpenses = useMyExpenses() ?? [];
+  const allHandovers = useMyHandovers() ?? [];
 
   const [actualCash, setActualCash] = useState('');
   const [reason, setReason] = useState('');
@@ -36,7 +37,7 @@ export default function CashReconciliationPage() {
     
     const reconciliation = {
       id: crypto.randomUUID(),
-      date: new Date().toISOString().split('T')[0],
+      date: riyadhToday(),
       expectedCash,
       actualCash: Number(actualCash),
       difference,

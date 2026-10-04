@@ -14,6 +14,12 @@ export default function VehicleSetupPage() {
   const [allDrivers, setAllDrivers] = useState<{ id: string, name: string, username: string | null }[]>([]);
   const [assignedDriverId, setAssignedDriverId] = useState<string>('');
   const [isAssigning, setIsAssigning] = useState(false);
+  const [driverPayType, setDriverPayType] = useState<'commission' | 'fixed_salary'>('commission');
+  const [driverCommission, setDriverCommission] = useState('35.0');
+  const [driverSalary, setDriverSalary] = useState('4000.00');
+  const [driverBonus, setDriverBonus] = useState('0');
+  // Real splits mapped to actual partner IDs
+  const [splits, setSplits] = useState<{ id: string, partnerId: string, pct: string }[]>([]);
 
   useEffect(() => {
     // Load Vehicle
@@ -26,9 +32,10 @@ export default function VehicleSetupPage() {
       .then(d => { if (Array.isArray(d)) setPartners(d); });
 
     // Load all drivers for the dropdown
-    fetch('/api/admin/drivers-list-full')
+    fetch('/api/admin/drivers-list-full?limit=100')
       .then(r => r.json())
-      .then(d => {
+      .then(res => {
+        const d = res.data;
         if (Array.isArray(d)) {
           setAllDrivers(d);
           // Find the driver assigned to this vehicle
@@ -81,22 +88,11 @@ export default function VehicleSetupPage() {
     loadExistingSplits();
   }, [vehicleId]);
 
-
-  const [driverPayType, setDriverPayType] = useState<'commission' | 'fixed_salary'>('commission');
-  const [driverCommission, setDriverCommission] = useState('35.0');
-  const [driverSalary, setDriverSalary] = useState('4000.00');
-  const [driverBonus, setDriverBonus] = useState('0');
-  
-  // Real splits mapped to actual partner IDs
-  const [splits, setSplits] = useState<{ id: string, partnerId: string, pct: string }[]>([]);
-  const [total, setTotal] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    setTotal(splits.reduce((s, r) => s + (parseFloat(r.pct) || 0), 0));
-  }, [splits]);
+  const total = splits.reduce((s, r) => s + (parseFloat(r.pct) || 0), 0);
 
   const handlePctChange = (id: string, val: string) => {
     setSplits(splits.map(s => s.id === id ? { ...s, pct: val } : s));
@@ -131,8 +127,9 @@ export default function VehicleSetupPage() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ 
         vehicleId, 
-        splits: splits.map(s => ({ partnerId: s.partnerId, percentage: s.pct })), 
-        driverPayType, 
+        splits: splits.map(s => ({ partnerId: s.partnerId, percentage: s.pct })),
+        // Pay terms belong to the assigned driver; without one only splits are saved.
+        driverPayType: assignedDriverId ? driverPayType : undefined,
         driverCommission, 
         driverSalary, 
         driverBonus 
@@ -226,6 +223,11 @@ export default function VehicleSetupPage() {
           <div className="p-6 border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900/50">
             <h3 className="text-xl font-bold">Driver Pay Setup</h3>
             <p className="text-sm text-zinc-500">Configure compensation for the primary driver of this vehicle.</p>
+            {!assignedDriverId && (
+              <p className="mt-2 text-sm font-medium text-amber-600 dark:text-amber-400">
+                No driver is assigned, so pay terms will not be saved. Assign a driver above first.
+              </p>
+            )}
           </div>
           <div className="p-6 space-y-6">
             <div className="flex gap-4">

@@ -1,15 +1,15 @@
 ﻿'use client';
+import { addDays, riyadhToday } from '@/lib/dates';
 
-import { useLiveQuery } from 'dexie-react-hooks';
-import { db } from '@/lib/db/dexie';
 import { useDriver } from '@/contexts/DriverContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area } from 'recharts';
+import { useMyExpenses, useMyRides } from '@/lib/db/use-my-entries';
 
 export default function DriverSummaryPage() {
   const { commissionRate, payType, loading } = useDriver();
-  const allRides = useLiveQuery(() => db.rides.toArray(), []) || [];
-  const allExpenses = useLiveQuery(() => db.expenses.toArray(), []) || [];
+  const allRides = useMyRides() ?? [];
+  const allExpenses = useMyExpenses() ?? [];
 
   const totalRevenue = allRides.reduce((sum, r) => sum + r.amount, 0);
   const totalExpenses = allExpenses.reduce((sum, e) => sum + e.amount, 0);
@@ -18,14 +18,14 @@ export default function DriverSummaryPage() {
   const estimatedShare = netRevenue > 0 && driverPercentage > 0 ? netRevenue * (driverPercentage / 100) : 0;
 
   // Build 7-day chart from real Dexie data
+  const today = riyadhToday();
   const last7 = Array.from({ length: 7 }, (_, i) => {
-    const d = new Date();
-    d.setDate(d.getDate() - (6 - i));
-    const key = d.toISOString().slice(0, 10);
+    const key = addDays(today, i - 6);
+    const d = new Date(`${key}T12:00:00Z`);
     const dayRides = allRides.filter(r => r.date?.slice(0, 10) === key);
     const dayExp = allExpenses.filter(e => e.date?.slice(0, 10) === key);
     return {
-      name: d.toLocaleDateString('en-SA', { weekday: 'short' }),
+      name: d.toLocaleDateString('en-SA', { weekday: 'short', timeZone: 'UTC' }),
       revenue: dayRides.reduce((s, r) => s + r.amount, 0),
       expense: dayExp.reduce((s, e) => s + e.amount, 0),
     };

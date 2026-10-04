@@ -1,11 +1,11 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import Link from 'next/link';
-import { Search, MoreHorizontal, Car, UserCheck } from 'lucide-react';
+import { Search, MoreHorizontal, Car, UserCheck, ChevronLeft, ChevronRight } from 'lucide-react';
 
 interface Driver {
   id: string;
@@ -14,31 +14,51 @@ interface Driver {
   status: string;
   vehicle_id: string | null;
   vehicles: { make: string; model: string; plate_number: string } | null;
+  is_partner?: boolean;
 }
+
+const PAGE_LIMIT = 50;
 
 export default function DriversList() {
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [total, setTotal] = useState(0);
 
+  // Debounce search input by 300ms
   useEffect(() => {
-    fetch('/api/admin/drivers-list-full')
-      .then(r => r.json())
-      .then(d => { if (Array.isArray(d)) setDrivers(d); })
-      .finally(() => setLoading(false));
-  }, []);
+    const timer = setTimeout(() => {
+      setDebouncedSearch(search);
+      setPage(1); // Reset to first page on new search
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [search]);
 
-  const filtered = drivers.filter(d =>
-    !search || d.name.toLowerCase().includes(search.toLowerCase()) ||
-    (d.username ?? '').toLowerCase().includes(search.toLowerCase())
-  );
+  // Fetch drivers when page or debounced search changes
+  useEffect(() => {
+    setLoading(true);
+    const params = new URLSearchParams({ page: String(page), limit: String(PAGE_LIMIT) });
+    if (debouncedSearch) params.set('search', debouncedSearch);
+
+    fetch(`/api/admin/drivers-list-full?${params}`)
+      .then(r => r.json())
+      .then((res) => {
+        setDrivers(res.data ?? []);
+        setTotal(res.total ?? 0);
+        setTotalPages(res.totalPages ?? 1);
+      })
+      .finally(() => setLoading(false));
+  }, [page, debouncedSearch]);
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
       <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Drivers</h1>
-          <p className="text-zinc-500 dark:text-zinc-400">Manage all registered drivers.</p>
+          <p className="text-zinc-500 dark:text-zinc-400">Manage all registered drivers. · {total} total</p>
         </div>
         <Link href="/admin/drivers/add">
           <Button className="bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm w-full sm:w-auto">
@@ -70,17 +90,22 @@ export default function DriversList() {
                 {loading && (
                   <tr><td colSpan={5} className="px-6 py-10 text-center text-zinc-400 text-sm">Loading drivers...</td></tr>
                 )}
-                {!loading && filtered.length === 0 && (
+                {!loading && drivers.length === 0 && (
                   <tr><td colSpan={5} className="px-6 py-10 text-center text-zinc-400 text-sm">
-                    {drivers.length === 0 ? 'No drivers yet. Add your first driver to get started.' : 'No drivers match your search.'}
+                    {debouncedSearch ? 'No drivers match your search.' : 'No drivers yet. Add your first driver to get started.'}
                   </td></tr>
                 )}
-                {filtered.map((driver) => (
+                {drivers.map((driver) => (
                   <tr key={driver.id} className="hover:bg-zinc-50/50 dark:hover:bg-zinc-900/30 transition-colors">
                     <td className="px-6 py-4 font-medium">
                       <Link href={`/admin/drivers/${driver.id}`} className="text-indigo-600 hover:text-indigo-700 hover:underline">
                         {driver.name}
                       </Link>
+                      {driver.is_partner && (
+                        <span className="ml-2 text-[10px] font-bold uppercase bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300 px-1.5 py-0.5 rounded" title="This person is also a partner: driver pay and partner share are paid separately.">
+                          Also partner
+                        </span>
+                      )}
                     </td>
                     <td className="px-6 py-4 text-zinc-500 font-mono">
                       {driver.username ? `@${driver.username}` : <span className="text-zinc-300 italic">not set</span>}
@@ -117,6 +142,35 @@ export default function DriversList() {
               </tbody>
             </table>
           </div>
+
+          {/* Pagination controls */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between border-t border-zinc-200 dark:border-zinc-800 px-6 py-4">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={page <= 1}
+                onClick={() => setPage(p => Math.max(1, p - 1))}
+                className="gap-1.5"
+              >
+                <ChevronLeft className="h-4 w-4" />
+                Previous
+              </Button>
+              <span className="text-sm text-zinc-500 dark:text-zinc-400">
+                Page {page} of {totalPages}
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={page >= totalPages}
+                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                className="gap-1.5"
+              >
+                Next
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

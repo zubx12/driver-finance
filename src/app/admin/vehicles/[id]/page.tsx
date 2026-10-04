@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useParams } from 'next/navigation';
+import { AssignmentHistory } from '@/components/admin/AssignmentHistory';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ChevronLeft, AlertCircle, Save, Plus, Trash2, Users, Settings } from 'lucide-react';
@@ -157,6 +158,8 @@ export default function VehicleSplitPage() {
           </div>
         </CardContent>
       </Card>
+
+      <AssignmentHistory vehicleId={vehicleId} />
     </div>
   );
 }

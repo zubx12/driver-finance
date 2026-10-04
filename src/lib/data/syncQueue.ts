@@ -1,152 +1,300 @@
-import { db } from '@/lib/db/dexie';
-import { insertRide, InsertRidePayload } from '@/lib/data/rides';
-import { insertExpense, uploadReceiptFromBase64, InsertExpensePayload } from '@/lib/data/expenses';
+import { db, type LocalRide, type LocalExpense, type LocalCashHandover, type SyncStatus } from '@/lib/db/dexie';
+import { createClient } from '@/lib/supabase/client';
+import type { InsertExpensePayload } from '@/lib/data/expenses';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export interface SyncResult {
-  ridesSucceeded: number;
-  ridesFailed: number;
-  expensesSucceeded: number;
-  expensesFailed: number;
+  synced: number;
+  retrying: number;
+  rejected: number;
 }
 
-// ─── Core sync functions ──────────────────────────────────────────────────────
+export interface SyncContext {
+  driverId: string;
+  /** Currently assigned vehicle; used only for entries saved before vehicles were recorded per entry. */
+  vehicleId: string | null;
+}
 
-/**
- * Flush all pending rides from IndexedDB to Supabase.
- * Called by the sync worker when connectivity is restored.
- */
-export async function flushPendingRides(driverId: string, vehicleId: string): Promise<{ succeeded: number; failed: number }> {
-  const pending = await db.rides.where('syncStatus').equals('pending').toArray();
-  let succeeded = 0;
-  let failed = 0;
+const EMPTY: SyncResult = { synced: 0, retrying: 0, rejected: 0 };
 
-  for (const localRide of pending) {
-    try {
-      const payload: InsertRidePayload = {
-        driver_id: driverId,
-        vehicle_id: vehicleId,
-        amount: localRide.amount,
-        payment_method: localRide.revenueType === 'CASH' ? 'Cash' : 'Voucher',
-        payment_status: localRide.paymentStatus === 'Outstanding' ? 'Outstanding' : 'Received',
-        ride_date: localRide.date,
-        reference: localRide.voucherReference,
-      };
+// Errors that will not go away by retrying: the server rejected the entry
+// (entry rules raise 23514 with a message meant for the driver).
+const PERMANENT_ERROR_CODES = new Set(['23514', '22023', '22P02', '23502', '23503', '42501', 'P0002']);
 
-      await insertRide(payload);
-      await db.rides.update(localRide.id, { syncStatus: 'synced' });
-      succeeded++;
-    } catch (err) {
-      console.error(`Failed to sync ride ${localRide.id}:`, err);
-      await db.rides.update(localRide.id, { syncStatus: 'failed' });
-      failed++;
-    }
+const RETRY_BASE_MS = 30_000;
+const RETRY_MAX_MS = 30 * 60_000;
+
+class SyncError extends Error {
+  constructor(message: string, readonly code?: string, readonly permanent = false) {
+    super(message);
+  }
+}
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function retryDelay(attempts: number) {
+  return Math.min(RETRY_MAX_MS, RETRY_BASE_MS * 2 ** Math.max(0, attempts - 1));
+}
+
+function isDue(rec: { syncStatus: SyncStatus; nextAttemptAt?: number; lastError?: string }, force: boolean) {
+  if (rec.syncStatus === 'pending') return force || !rec.nextAttemptAt || rec.nextAttemptAt <= Date.now();
+  // 'failed' records from older app versions never recorded why; retry them once.
+  return rec.syncStatus === 'failed' && !rec.lastError;
+}
+
+function belongsTo(rec: { driverId?: string }, driverId: string) {
+  return !rec.driverId || rec.driverId === driverId;
+}
+
+function toSyncError(error: { message: string; code?: string }): SyncError {
+  return new SyncError(error.message, error.code, !!error.code && PERMANENT_ERROR_CODES.has(error.code));
+}
+
+type EntryTable = 'rides' | 'expenses' | 'cash_handovers';
+type SyncChanges = { syncStatus?: SyncStatus; attempts?: number; nextAttemptAt?: number; lastError?: string };
+
+function updateLocal(table: EntryTable, id: string, changes: SyncChanges) {
+  if (table === 'rides') return db.rides.update(id, changes);
+  if (table === 'expenses') return db.expenses.update(id, changes);
+  return db.cashHandovers.update(id, changes);
+}
+
+async function existsOnServer(table: EntryTable, id: string) {
+  const { data } = await createClient().from(table).select('id').eq('id', id).maybeSingle();
+  return !!data;
+}
+
+/** Record the outcome of one upload attempt on the local entry. */
+async function recordOutcome(table: EntryTable, rec: LocalRide | LocalExpense | LocalCashHandover, err: unknown): Promise<keyof SyncResult> {
+  const synced: SyncChanges = { syncStatus: 'synced', lastError: undefined, nextAttemptAt: undefined };
+  if (!err) {
+    await updateLocal(table, rec.id, synced);
+    return 'synced';
+  }
+  // The insert may have succeeded even though the response was lost.
+  if (await existsOnServer(table, rec.id).catch(() => false)) {
+    await updateLocal(table, rec.id, synced);
+    return 'synced';
+  }
+  const e = err instanceof SyncError ? err : new SyncError(err instanceof Error ? err.message : 'Unknown error');
+  if (e.permanent) {
+    await updateLocal(table, rec.id, { syncStatus: 'failed', lastError: e.message, nextAttemptAt: undefined });
+    return 'rejected';
+  }
+  const attempts = (rec.attempts ?? 0) + 1;
+  await updateLocal(table, rec.id, {
+    syncStatus: 'pending',
+    attempts,
+    lastError: e.message,
+    nextAttemptAt: Date.now() + retryDelay(attempts),
+  });
+  return 'retrying';
+}
+
+// ─── Rides ────────────────────────────────────────────────────────────────────
+
+async function pushRide(ride: LocalRide, ctx: SyncContext) {
+  const vehicleId = ride.vehicleId ?? ctx.vehicleId;
+  if (!vehicleId) {
+    throw new SyncError('No vehicle is assigned to you yet. The ride is saved on this phone and will upload once the office assigns a vehicle.');
   }
 
-  return { succeeded, failed };
+  // Payers added on this phone have no server id; send the name instead.
+  const payer = ride.payerId ? await db.payers.get(ride.payerId) : undefined;
+  const isVoucher = ride.revenueType === 'VOUCHER';
+  const collected = isVoucher && ride.paymentStatus === 'Collected';
+
+  const payload = {
+    id: ride.id,
+    driver_id: ctx.driverId,
+    vehicle_id: vehicleId,
+    amount: ride.amount,
+    payment_method: isVoucher ? 'Voucher' : 'Cash',
+    payment_status: !isVoucher ? 'Received' : collected ? 'Collected' : 'Outstanding',
+    ride_date: ride.date,
+    reference: ride.voucherReference ?? null,
+    payer_id: payer?.source === 'server' ? payer.id : null,
+    payer_name: payer?.name ?? null,
+    ...(collected ? { collected_by_role: 'driver', collected_at: new Date().toISOString() } : {}),
+  };
+
+  // Same id every attempt + ignoreDuplicates = a retry can never create a second ride.
+  const { error } = await createClient()
+    .from('rides')
+    .upsert(payload, { onConflict: 'id', ignoreDuplicates: true });
+  if (error) throw toSyncError(error);
+
+  await applyEditMadeDuringUpload('rides', ride.id, payload.amount);
 }
 
-/**
- * Flush all pending expenses from IndexedDB to Supabase.
- * For expenses with a receipt image (base64), upload to Storage first,
- * then insert the expense with the returned storage path as receipt_image_url.
- */
-export async function flushPendingExpenses(driverId: string, vehicleId: string): Promise<{ succeeded: number; failed: number }> {
-  const pending = await db.expenses.where('syncStatus').equals('pending').toArray();
-  let succeeded = 0;
-  let failed = 0;
+// ─── Expenses ─────────────────────────────────────────────────────────────────
 
-  for (const localExpense of pending) {
-    try {
-      // AGENTS.md Rule #3: An expense without a receipt image must be impossible.
-      // If no receipt image exists, mark this expense as failed rather than using a fake URL.
-      if (!localExpense.receiptImageBase64) {
-        console.error(`Expense ${localExpense.id} is missing a receipt image. Skipping sync.`);
-        await db.expenses.update(localExpense.id, { syncStatus: 'failed' });
-        failed++;
-        continue;
-      }
+async function uploadReceipt(driverId: string, expense: LocalExpense): Promise<string> {
+  const base64 = expense.receiptImageBase64!;
+  const byteString = atob(base64.split(',')[1] ?? base64);
+  const bytes = new Uint8Array(byteString.length);
+  for (let i = 0; i < byteString.length; i++) bytes[i] = byteString.charCodeAt(i);
 
-      const storagePath = await uploadReceiptFromBase64(
-        driverId,
-        localExpense.date,
-        localExpense.receiptImageBase64
-      );
-      let receiptUrl = storagePath;
+  // Fixed path per expense, so a retry reuses the photo instead of leaving orphans.
+  const path = `${driverId}/${expense.date}/${expense.id}.jpg`;
+  const { error } = await createClient()
+    .storage.from('receipts')
+    .upload(path, new Blob([bytes], { type: 'image/jpeg' }), { upsert: false, contentType: 'image/jpeg' });
 
-      const payload: InsertExpensePayload = {
-        driver_id: driverId,
-        vehicle_id: localExpense.vehicleId ?? vehicleId,
-        amount: localExpense.amount,
-        category: localExpense.category,
-        payment_method: localExpense.paymentSource === 'Cash'
-          ? 'Cash'
-          : localExpense.paymentSource === 'Bank Transfer'
-          ? 'Transfer'
-          : 'Card',
-        description: localExpense.description,
-        receipt_image_url: receiptUrl,
-        expense_date: localExpense.date,
-      };
+  if (error && !/already exists|duplicate/i.test(error.message)) {
+    throw new SyncError(`Receipt upload failed: ${error.message}`);
+  }
+  return path;
+}
 
-      await insertExpense(payload);
-      await db.expenses.update(localExpense.id, { syncStatus: 'synced' });
-      succeeded++;
-    } catch (err) {
-      console.error(`Failed to sync expense ${localExpense.id}:`, err);
-      await db.expenses.update(localExpense.id, { syncStatus: 'failed' });
-      failed++;
-    }
+async function pushExpense(expense: LocalExpense, ctx: SyncContext) {
+  // AGENTS.md rule 3: an expense without a receipt image must be impossible.
+  if (!expense.receiptImageBase64) {
+    throw new SyncError('This expense has no receipt photo. Please discard it and add it again with a photo.', undefined, true);
   }
 
-  return { succeeded, failed };
-}
+  // D5: only "Current Vehicle" expenses are charged to a vehicle. Driver and
+  // company expenses are stored without one so they never reduce partner pay.
+  // Entries saved before allocation existed were vehicle expenses.
+  const isVehicleExpense = (expense.allocation ?? 'Current Vehicle') === 'Current Vehicle';
+  const vehicleId = isVehicleExpense ? (expense.vehicleId ?? ctx.vehicleId) : null;
+  if (isVehicleExpense && !vehicleId) {
+    throw new SyncError('No vehicle is assigned to you yet. The expense is saved on this phone and will upload once the office assigns a vehicle.');
+  }
 
-/**
- * Main sync entry point. Call this whenever connectivity is detected.
- * Returns a summary of what was synced.
- */
-export async function syncAll(driverId: string, vehicleId: string): Promise<SyncResult> {
-  const [ridesResult, expensesResult] = await Promise.all([
-    vehicleId ? flushPendingRides(driverId, vehicleId) : Promise.resolve({ succeeded: 0, failed: 0 }),
-    flushPendingExpenses(driverId, vehicleId),
-  ]);
+  const receiptPath = await uploadReceipt(ctx.driverId, expense);
 
-  return {
-    ridesSucceeded: ridesResult.succeeded,
-    ridesFailed: ridesResult.failed,
-    expensesSucceeded: expensesResult.succeeded,
-    expensesFailed: expensesResult.failed,
-  };
-}
-
-/**
- * Get the count of records waiting to be synced.
- * Used to show the offline queue indicator in the driver UI.
- */
-export async function getPendingCount(): Promise<number> {
-  const [rides, expenses] = await Promise.all([
-    db.rides.where('syncStatus').equals('pending').count(),
-    db.expenses.where('syncStatus').equals('pending').count(),
-  ]);
-  return rides + expenses;
-}
-
-/**
- * Register a network listener to auto-sync when coming back online.
- * Call this once on app mount in the driver layout.
- */
-export function registerOnlineListener(driverId: string, vehicleId: string): () => void {
-  const handler = () => {
-    syncAll(driverId, vehicleId).then((result) => {
-      if (result.ridesSucceeded + result.expensesSucceeded > 0) {
-        console.log(`[Sync] Synced ${result.ridesSucceeded} rides and ${result.expensesSucceeded} expenses.`);
-      }
-    });
+  const payload: InsertExpensePayload & { id: string } = {
+    id: expense.id,
+    driver_id: ctx.driverId,
+    allocation: isVehicleExpense ? 'Vehicle' : expense.allocation === 'Driver' ? 'Driver' : 'Company',
+    vehicle_id: vehicleId,
+    amount: expense.amount,
+    category: expense.category,
+    payment_method: expense.paymentSource === 'Cash'
+      ? 'Cash'
+      : expense.paymentSource === 'Bank Transfer'
+      ? 'Transfer'
+      : 'Card',
+    description: expense.description,
+    receipt_image_url: receiptPath,
+    expense_date: expense.date,
   };
 
-  window.addEventListener('online', handler);
-  // Return cleanup function
-  return () => window.removeEventListener('online', handler);
+  const { error } = await createClient()
+    .from('expenses')
+    .upsert(payload, { onConflict: 'id', ignoreDuplicates: true });
+  if (error) throw toSyncError(error);
+
+  await applyEditMadeDuringUpload('expenses', expense.id, payload.amount);
+}
+
+/**
+ * If the driver edited the amount while the upload was in flight, the server
+ * has the old amount. Send the edit now (allowed: same-day entries only).
+ */
+async function applyEditMadeDuringUpload(table: 'rides' | 'expenses', id: string, uploadedAmount: number) {
+  const latest = table === 'rides' ? await db.rides.get(id) : await db.expenses.get(id);
+  if (latest && latest.amount !== uploadedAmount) {
+    await createClient().from(table).update({ amount: latest.amount }).eq('id', id);
+  }
+}
+
+// ─── Cash handovers ───────────────────────────────────────────────────────────
+
+/** A handover the driver recorded; the office confirms or disputes it on the server. */
+async function pushHandover(handover: LocalCashHandover, ctx: SyncContext) {
+  const { error } = await createClient()
+    .from('cash_handovers')
+    .upsert({
+      id: handover.id,
+      driver_id: ctx.driverId,
+      vehicle_id: handover.vehicleId ?? ctx.vehicleId,
+      amount: handover.amount,
+      handover_date: handover.date,
+      handed_to: handover.handedTo || null,
+      reference: handover.reference || null,
+      notes: handover.notes || null,
+    }, { onConflict: 'id', ignoreDuplicates: true });
+  if (error) throw toSyncError(error);
+}
+
+// ─── Flush ────────────────────────────────────────────────────────────────────
+
+async function flush(ctx: SyncContext, force: boolean): Promise<SyncResult> {
+  const result: SyncResult = { ...EMPTY };
+
+  const rides = (await db.rides.where('syncStatus').anyOf('pending', 'failed').toArray())
+    .filter((r) => belongsTo(r, ctx.driverId) && isDue(r, force));
+  for (const ride of rides) {
+    let err: unknown = null;
+    try { await pushRide(ride, ctx); } catch (e) { err = e; }
+    result[await recordOutcome('rides', ride, err)]++;
+  }
+
+  const expenses = (await db.expenses.where('syncStatus').anyOf('pending', 'failed').toArray())
+    .filter((e) => belongsTo(e, ctx.driverId) && isDue(e, force));
+  for (const expense of expenses) {
+    let err: unknown = null;
+    try { await pushExpense(expense, ctx); } catch (e) { err = e; }
+    result[await recordOutcome('expenses', expense, err)]++;
+  }
+
+  const handovers = (await db.cashHandovers.where('syncStatus').anyOf('pending', 'failed').toArray())
+    .filter((h) => belongsTo(h, ctx.driverId) && isDue(h, force));
+  for (const handover of handovers) {
+    let err: unknown = null;
+    try { await pushHandover(handover, ctx); } catch (e) { err = e; }
+    result[await recordOutcome('cash_handovers', handover, err)]++;
+  }
+
+  return result;
+}
+
+/**
+ * Upload every entry that is due. Safe to call often and from several tabs:
+ * only one tab syncs at a time, and re-sending an entry never duplicates it.
+ * @param force retry pending entries now instead of waiting for their back-off.
+ */
+export async function syncAll(ctx: SyncContext, force = false): Promise<SyncResult> {
+  if (!ctx.driverId) return EMPTY;
+  if (typeof navigator !== 'undefined' && navigator.locks) {
+    return navigator.locks.request('driver-finance-sync', { ifAvailable: true }, (lock) =>
+      lock ? flush(ctx, force) : EMPTY,
+    );
+  }
+  return flush(ctx, force);
+}
+
+/** Entries not yet on the server, split by whether they will retry by themselves. */
+export async function getUnsyncedCounts(): Promise<{ pending: number; failed: number }> {
+  const count = (status: SyncStatus) => Promise.all([
+    db.rides.where('syncStatus').equals(status).count(),
+    db.expenses.where('syncStatus').equals(status).count(),
+    db.cashHandovers.where('syncStatus').equals(status).count(),
+  ]).then((counts) => counts.reduce((a, b) => a + b, 0));
+  const [pending, failed] = await Promise.all([count('pending'), count('failed')]);
+  return { pending, failed };
+}
+
+/** Driver tapped "Retry" on a rejected entry (e.g. after the office fixed their vehicle). */
+type EntryKind = 'ride' | 'expense' | 'handover';
+const TABLE_FOR: Record<EntryKind, EntryTable> = { ride: 'rides', expense: 'expenses', handover: 'cash_handovers' };
+
+export async function retryEntry(kind: EntryKind, id: string) {
+  await updateLocal(TABLE_FOR[kind], id, {
+    syncStatus: 'pending', attempts: 0, nextAttemptAt: undefined, lastError: undefined,
+  });
+}
+
+/** Driver chose to throw away an entry the server rejected. Never used for synced entries. */
+export async function discardEntry(kind: EntryKind, id: string) {
+  const rec = kind === 'ride' ? await db.rides.get(id)
+    : kind === 'expense' ? await db.expenses.get(id)
+    : await db.cashHandovers.get(id);
+  if (!rec || rec.syncStatus === 'synced') return;
+  if (kind === 'ride') await db.rides.delete(id);
+  else if (kind === 'expense') await db.expenses.delete(id);
+  else await db.cashHandovers.delete(id);
 }

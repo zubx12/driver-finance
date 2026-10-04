@@ -1,9 +1,10 @@
-﻿import { createClient as createServiceClient } from '@supabase/supabase-js';
+import { createClient as createServiceClient } from '@supabase/supabase-js';
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { getAppRole } from '@/lib/auth/roles';
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   const cookieStore = await cookies();
   const supabaseAuth = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -11,7 +12,7 @@ export async function GET() {
     { cookies: { getAll: () => cookieStore.getAll(), setAll: (s) => s.forEach(({ name, value, options }) => cookieStore.set(name, value, options)) } }
   );
   const { data: { user } } = await supabaseAuth.auth.getUser();
-  if (!user || user.user_metadata?.role !== 'admin') {
+  if (!user || getAppRole(user) !== 'admin') {
     return NextResponse.json({ message: 'Unauthorized' }, { status: 403 });
   }
 
@@ -20,11 +21,47 @@ export async function GET() {
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   );
 
-  const { data, error } = await admin
+  const { searchParams } = request.nextUrl;
+  const page = Math.max(1, parseInt(searchParams.get('page') ?? '1', 10));
+  const limit = Math.max(1, Math.min(100, parseInt(searchParams.get('limit') ?? '50', 10)));
+  // Strip characters that have meaning inside a PostgREST .or() filter
+  const search = (searchParams.get('search') ?? '').replace(/[,()*\\]/g, ' ').trim();
+  const status = searchParams.get('status')?.trim() ?? '';
+
+  let query = admin
     .from('drivers')
-    .select('id, name, username, status, vehicle_id, vehicles(make, model, plate_number)')
-    .order('name');
+    .select('id, name, username, status, vehicle_id, linked_auth_id, vehicles(make, model, plate_number)', { count: 'exact' });
+
+  if (search) {
+    query = query.or(`name.ilike.%${search}%,username.ilike.%${search}%`);
+  }
+
+  if (status) {
+    query = query.eq('status', status);
+  }
+
+  const from = (page - 1) * limit;
+  const to = page * limit - 1;
+
+  const { data, error, count } = await query
+    .order('name')
+    .range(from, to);
 
   if (error) return NextResponse.json({ message: error.message }, { status: 500 });
-  return NextResponse.json(data ?? []);
+
+  // D6: flag drivers who are also partners, so it is always visible.
+  const authIds = (data ?? []).map((d) => d.linked_auth_id).filter(Boolean);
+  const { data: partnerLinks } = authIds.length
+    ? await admin.from('partners').select('linked_auth_id').in('linked_auth_id', authIds)
+    : { data: [] };
+  const partnerAuthIds = new Set((partnerLinks ?? []).map((p) => p.linked_auth_id));
+  const rows = (data ?? []).map(({ linked_auth_id, ...d }) => ({
+    ...d,
+    is_partner: !!linked_auth_id && partnerAuthIds.has(linked_auth_id),
+  }));
+
+  const total = count ?? 0;
+  const totalPages = Math.max(1, Math.ceil(total / limit));
+
+  return NextResponse.json({ data: rows, total, page, totalPages });
 }

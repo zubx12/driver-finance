@@ -1,4 +1,7 @@
-﻿CREATE OR REPLACE VIEW partner_settlement_view AS
+﻿-- DROP first: CREATE OR REPLACE VIEW cannot insert a column (partner_name) in
+-- the middle of an existing view, so this migration failed on a fresh database.
+DROP VIEW IF EXISTS partner_settlement_view;
+CREATE VIEW partner_settlement_view AS
 SELECT
   s.id,
   s.partner_id,

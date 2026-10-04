@@ -13,7 +13,7 @@ import { useDriver } from '@/contexts/DriverContext';
 
 export default function AddRidePage() {
   const router = useRouter();
-  const { vehicleMake, vehicleModel, vehiclePlate } = useDriver();
+  const { driverId, vehicleId, vehicleMake, vehicleModel, vehiclePlate } = useDriver();
   
   const [revenueType, setRevenueType] = useState<'CASH' | 'VOUCHER'>('CASH');
   const [revenue, setRevenue] = useState('');
@@ -72,6 +72,10 @@ export default function AddRidePage() {
       voucherReference: revenueType === 'VOUCHER' ? voucherReference : undefined,
       notes: notes,
       evidenceImageBase64: imagePreview || undefined,
+      // Recorded now so the ride uploads under this driver and this vehicle even
+      // if the phone syncs after a reassignment or another driver signs in.
+      driverId,
+      vehicleId: vehicleId ?? undefined,
       syncStatus: 'pending' as const,
       createdAt: now,
     };

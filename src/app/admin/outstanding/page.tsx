@@ -71,30 +71,34 @@ export default function OutstandingPaymentsPage() {
       collected_by_role: 'admin',
       collected_at: new Date().toISOString(),
     }).eq('id', rideId);
-    // Remove from local state
-    setRides(prev => prev.filter(r => r.id !== rideId));
-    setByPayer(prev => prev.map(g => ({
-      ...g,
-      rides: g.rides.filter(r => r.id !== rideId),
-      count: g.rides.filter(r => r.id !== rideId).length,
-      total: g.rides.filter(r => r.id !== rideId).reduce((s, r) => s + r.amount, 0),
-    })).filter(g => g.count > 0));
-    setTotalOutstanding(prev => prev - (rides.find(r => r.id === rideId)?.amount || 0));
+    // Use functional setters to avoid stale closure over `rides`
+    setRides(prev => {
+      const removedRide = prev.find(r => r.id === rideId);
+      const next = prev.filter(r => r.id !== rideId);
+      if (removedRide) {
+        setTotalOutstanding(t => t - removedRide.amount);
+      }
+      return next;
+    });
+    setByPayer(prev => prev.map(g => {
+      const nextRides = g.rides.filter(r => r.id !== rideId);
+      return { ...g, rides: nextRides, count: nextRides.length, total: nextRides.reduce((s, r) => s + r.amount, 0) };
+    }).filter(g => g.count > 0));
     setUpdatingId(null);
   };
 
   const markPayerCollected = async (payerGroup: PayerGroup) => {
     const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
-    for (const ride of payerGroup.rides) {
-      await supabase.from('rides').update({
-        payment_status: 'Collected',
-        collected_by: user?.id,
-        collected_by_name: 'Admin',
-        collected_by_role: 'admin',
-        collected_at: new Date().toISOString(),
-      }).eq('id', ride.id);
-    }
+    const rideIds = payerGroup.rides.map(r => r.id);
+    // Batch update: single query instead of N+1 individual writes
+    await supabase.from('rides').update({
+      payment_status: 'Collected',
+      collected_by: user?.id,
+      collected_by_name: 'Admin',
+      collected_by_role: 'admin',
+      collected_at: new Date().toISOString(),
+    }).in('id', rideIds);
     // Reload data
     load();
   };

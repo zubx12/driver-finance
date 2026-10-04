@@ -2,6 +2,7 @@ import { createClient as createServiceClient } from '@supabase/supabase-js';
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import { NextRequest, NextResponse } from 'next/server';
+import { getAppRole } from '@/lib/auth/roles';
 
 export async function GET(request: NextRequest) {
   const id = request.nextUrl.searchParams.get('id');
@@ -16,7 +17,7 @@ export async function GET(request: NextRequest) {
     { cookies: { getAll: () => cookieStore.getAll(), setAll: (s) => s.forEach(({ name, value, options }) => cookieStore.set(name, value, options)) } }
   );
   const { data: { user } } = await supabaseAuth.auth.getUser();
-  if (!user || user.user_metadata?.role !== 'admin') {
+  if (!user || getAppRole(user) !== 'admin') {
     return NextResponse.json({ message: 'Unauthorized' }, { status: 403 });
   }
 

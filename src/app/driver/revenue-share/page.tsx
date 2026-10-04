@@ -1,18 +1,17 @@
 ﻿'use client';
 
 import { useRouter } from 'next/navigation';
-import { useLiveQuery } from 'dexie-react-hooks';
-import { db } from '@/lib/db/dexie';
 import { useDriver } from '@/contexts/DriverContext';
 import { Card, CardContent } from '@/components/ui/card';
 import { ArrowLeft, Lock, ShieldAlert, TrendingUp } from 'lucide-react';
+import { useMyExpenses, useMyRides } from '@/lib/db/use-my-entries';
 
 export default function RevenueSharePage() {
   const router = useRouter();
   const { payType, commissionRate, fixedSalary, bonusRate, vehicleMake, vehicleModel, loading } = useDriver();
 
-  const allRides = useLiveQuery(() => db.rides.toArray(), []) || [];
-  const allExpenses = useLiveQuery(() => db.expenses.toArray(), []) || [];
+  const allRides = useMyRides() ?? [];
+  const allExpenses = useMyExpenses() ?? [];
 
   const totalRevenue = allRides.reduce((sum, r) => sum + r.amount, 0);
   const totalExpenses = allExpenses.reduce((sum, e) => sum + e.amount, 0);

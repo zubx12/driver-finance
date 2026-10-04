@@ -18,9 +18,10 @@ function SyncEngineStarter() {
   const { driverId, vehicleId, loading } = useDriver();
 
   useEffect(() => {
-    if (loading || !driverId || !vehicleId) return;
+    // Runs without a vehicle too: entries then wait on the phone with a clear message.
+    if (loading || !driverId) return;
     // startSyncEngine returns a cleanup function — React runs it on unmount
-    return startSyncEngine(driverId, vehicleId);
+    return startSyncEngine(driverId, vehicleId ?? null);
   }, [driverId, vehicleId, loading]);
 
   return null;

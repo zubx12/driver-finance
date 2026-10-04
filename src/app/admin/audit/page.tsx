@@ -1,79 +1,224 @@
-﻿import { createClient } from '@/lib/supabase/server';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { ShieldCheck, ArrowRight } from 'lucide-react';
+'use client';
 
-export const dynamic = 'force-dynamic';
+import { Suspense, useCallback, useEffect, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
+import { Card, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { ShieldCheck, AlertCircle, ArrowRight, ChevronLeft, ChevronRight } from 'lucide-react';
+import { createClient } from '@/lib/supabase/client';
 
-export default async function AdminAuditLogPage() {
-  const supabase = await createClient();
-  const { data } = await supabase
-    .from('audit_log')
-    .select('id, table_name, record_id, changed_by, field_name, old_value, new_value, created_at')
-    .order('created_at', { ascending: false })
-    .limit(100);
-  const audits = data ?? [];
+// Every insert, change and deletion of money and access data is recorded by a
+// database trigger and cannot be edited or deleted (migrations 20260930000001
+// and 20261004000002). get_audit_log adds names and a "from -> to" view.
 
-  const fmt = (iso: string) => {
-    const d = new Date(iso);
-    return { date: d.toLocaleDateString('en-SA'), time: d.toLocaleTimeString('en-SA', { hour: '2-digit', minute: '2-digit' }) };
+interface AuditRow {
+  id: string;
+  changed_at: string;
+  table_name: string;
+  record_id: string;
+  action: 'INSERT' | 'UPDATE' | 'DELETE';
+  actor: string;
+  changes: Record<string, { from: unknown; to: unknown }> | null;
+  snapshot: Record<string, unknown> | null;
+  total_count: number;
+}
+
+const PAGE_SIZE = 50;
+const TABLES: { value: string; label: string }[] = [
+  { value: '', label: 'Everything' },
+  { value: 'rides', label: 'Rides' },
+  { value: 'expenses', label: 'Expenses' },
+  { value: 'salary_calculations', label: 'Salary runs' },
+  { value: 'salary_adjustments', label: 'Adjustments' },
+  { value: 'settlements', label: 'Settlements' },
+  { value: 'vehicle_partners', label: 'Ownership splits' },
+  { value: 'driver_compensation', label: 'Driver pay terms' },
+  { value: 'correction_requests', label: 'Correction requests' },
+  { value: 'drivers', label: 'Drivers' },
+  { value: 'partners', label: 'Partners' },
+  { value: 'vehicles', label: 'Vehicles' },
+  { value: 'payers', label: 'Payers' },
+];
+const ACTION_LABEL = { INSERT: 'Created', UPDATE: 'Changed', DELETE: 'Deleted' } as const;
+const ACTION_STYLE = {
+  INSERT: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300',
+  UPDATE: 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/40 dark:text-indigo-300',
+  DELETE: 'bg-rose-100 text-rose-800 dark:bg-rose-900/40 dark:text-rose-300',
+} as const;
+// Fields that explain a created/deleted row at a glance.
+const SUMMARY_FIELDS = ['amount', 'ride_date', 'expense_date', 'category', 'status', 'payment_status', 'percentage', 'name', 'period_start', 'reason'];
+
+const show = (v: unknown) => (v === null || v === undefined || v === '' ? '—' : typeof v === 'object' ? JSON.stringify(v) : String(v));
+const label = (field: string) => field.replace(/_/g, ' ');
+
+interface Filters { table: string; record: string; from: string; to: string; page: number; }
+
+async function fetchAudit(f: Filters): Promise<{ rows?: AuditRow[]; error?: string }> {
+  const { data, error } = await createClient().rpc('get_audit_log', {
+    p_table: f.table || null,
+    p_record_id: f.record || null,
+    p_from: f.from || null,
+    p_to: f.to || null,
+    p_limit: PAGE_SIZE,
+    p_offset: f.page * PAGE_SIZE,
+  });
+  if (error) return { error: error.message };
+  return { rows: (data ?? []) as AuditRow[] };
+}
+
+function AuditLog() {
+  const params = useSearchParams();
+  const [filters, setFilters] = useState<Filters>({
+    table: params.get('table') ?? '', record: params.get('record') ?? '', from: '', to: '', page: 0,
+  });
+  const [rows, setRows] = useState<AuditRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const apply = useCallback((r: { rows?: AuditRow[]; error?: string }) => {
+    if (r.error) setError(r.error);
+    else { setRows(r.rows ?? []); setError(null); }
+    setLoading(false);
+  }, []);
+
+  useEffect(() => {
+    let current = true;
+    fetchAudit(filters).then((r) => { if (current) apply(r); });
+    return () => { current = false; };
+  }, [filters, apply]);
+
+  const update = (patch: Partial<Filters>) => {
+    setLoading(true);
+    setFilters(prev => ({ ...prev, page: 0, ...patch }));
   };
 
+  const total = rows[0]?.total_count ?? 0;
+  const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+
   return (
-    <div className="space-y-8 max-w-7xl mx-auto">
-      <header>
-        <h1 className="text-3xl font-bold tracking-tight">Audit Log</h1>
-        <p className="text-zinc-500 dark:text-zinc-400">Immutable record of all financial changes across the system.</p>
+    <div className="space-y-6 max-w-6xl mx-auto">
+      <header className="flex items-start gap-3">
+        <div className="bg-emerald-100 dark:bg-emerald-900/30 p-2 rounded-lg mt-1">
+          <ShieldCheck className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+        </div>
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Audit Log</h1>
+          <p className="text-zinc-500 dark:text-zinc-400">
+            Every change to money and account data: who, when, and what changed. Entries cannot be edited or deleted.
+          </p>
+        </div>
       </header>
-      <Card className="border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-sm overflow-hidden">
-        <CardHeader className="bg-zinc-50 dark:bg-zinc-900/50 border-b border-zinc-100 dark:border-zinc-800 p-5 flex flex-row items-center gap-3">
-          <div className="bg-emerald-100 dark:bg-emerald-900/30 p-2 rounded-lg">
-            <ShieldCheck className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
-          </div>
-          <div>
-            <CardTitle className="text-base">System Traceability Active</CardTitle>
-            <CardDescription>{audits.length} events recorded &mdash; last 100 shown.</CardDescription>
-          </div>
-        </CardHeader>
-        <CardContent className="p-0">
-          {audits.length === 0 ? (
-            <div className="py-16 text-center text-zinc-400 text-sm">No audit events yet. They appear here when data is edited.</div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm text-left">
-                <thead className="text-xs text-zinc-500 uppercase bg-zinc-50/50 dark:bg-zinc-900/20 border-b border-zinc-100 dark:border-zinc-800">
-                  <tr>
-                    <th className="px-6 py-4 font-semibold">Time</th>
-                    <th className="px-6 py-4 font-semibold">Changed By</th>
-                    <th className="px-6 py-4 font-semibold">Table / Record</th>
-                    <th className="px-6 py-4 font-semibold">Field</th>
-                    <th className="px-6 py-4 font-semibold">Change</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
-                  {audits.map((a) => {
-                    const { date, time } = fmt(a.created_at);
-                    return (
-                      <tr key={a.id} className="hover:bg-zinc-50/50 dark:hover:bg-zinc-900/20 transition-colors">
-                        <td className="px-6 py-4 whitespace-nowrap"><div className="font-medium">{time}</div><div className="text-xs text-zinc-500">{date}</div></td>
-                        <td className="px-6 py-4 whitespace-nowrap"><span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-zinc-100 dark:bg-zinc-800 text-xs font-medium text-zinc-700 dark:text-zinc-300">{a.changed_by}</span></td>
-                        <td className="px-6 py-4 whitespace-nowrap"><div className="font-mono text-xs text-zinc-500">{a.table_name}</div><div className="font-medium">{a.record_id}</div></td>
-                        <td className="px-6 py-4 whitespace-nowrap"><code className="text-xs font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/30 px-1.5 py-0.5 rounded">{a.field_name}</code></td>
-                        <td className="px-6 py-4">
-                          <div className="flex items-center gap-2 text-xs font-mono">
-                            <span className="text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-900/30 px-1.5 py-0.5 rounded line-through">{a.old_value ?? 'null'}</span>
-                            <ArrowRight className="h-3 w-3 text-zinc-400" />
-                            <span className="text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/30 px-1.5 py-0.5 rounded font-bold">{a.new_value ?? 'null'}</span>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
+
+      <Card className="border-zinc-200 dark:border-zinc-800 rounded-xl">
+        <CardContent className="p-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <label className="text-xs font-semibold text-zinc-500 space-y-1">
+            <span>Show</span>
+            <select value={filters.table} onChange={e => update({ table: e.target.value })}
+              className="h-9 w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-transparent px-2 text-sm font-normal text-zinc-900 dark:text-zinc-100">
+              {TABLES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+            </select>
+          </label>
+          <label className="text-xs font-semibold text-zinc-500 space-y-1">
+            <span>From</span>
+            <Input type="date" value={filters.from} onChange={e => update({ from: e.target.value })} className="h-9" />
+          </label>
+          <label className="text-xs font-semibold text-zinc-500 space-y-1">
+            <span>To</span>
+            <Input type="date" value={filters.to} onChange={e => update({ to: e.target.value })} className="h-9" />
+          </label>
+          <label className="text-xs font-semibold text-zinc-500 space-y-1">
+            <span>One record (id)</span>
+            <Input value={filters.record} placeholder="Paste a ride/expense id"
+              onChange={e => {
+                const v = e.target.value.trim();
+                if (v === '' || /^[0-9a-f-]{36}$/i.test(v)) update({ record: v });
+              }}
+              className="h-9 font-mono text-xs" />
+          </label>
         </CardContent>
       </Card>
+
+      {error && (
+        <div className="p-4 bg-red-50 border border-red-200 dark:bg-red-950/20 dark:border-red-800 rounded-xl flex items-center gap-3 text-sm text-red-700 dark:text-red-400">
+          <AlertCircle className="h-4 w-4 shrink-0" />{error}
+        </div>
+      )}
+
+      {loading ? (
+        <div className="text-center text-zinc-400 py-12 text-sm">Loading audit log...</div>
+      ) : rows.length === 0 ? (
+        <div className="text-center text-zinc-400 py-12 text-sm">No changes match these filters.</div>
+      ) : (
+        <>
+          <div className="text-sm text-zinc-500">{total} change{total === 1 ? '' : 's'}</div>
+          <div className="space-y-2">
+            {rows.map(row => {
+              const when = new Date(row.changed_at);
+              const tableLabel = TABLES.find(t => t.value === row.table_name)?.label ?? row.table_name;
+              const fields = row.action === 'UPDATE'
+                ? Object.entries(row.changes ?? {})
+                : SUMMARY_FIELDS.filter(f => row.snapshot && f in row.snapshot).map(f => [f, row.snapshot![f]] as const);
+              return (
+                <Card key={row.id} className="border-zinc-200 dark:border-zinc-800 rounded-xl">
+                  <CardContent className="p-4 space-y-2">
+                    <div className="flex flex-wrap items-center gap-2 text-sm">
+                      <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded ${ACTION_STYLE[row.action]}`}>{ACTION_LABEL[row.action]}</span>
+                      <span className="font-semibold">{tableLabel}</span>
+                      <button className="font-mono text-xs text-indigo-600 hover:underline" title="Show this record's full history"
+                        onClick={() => update({ record: row.record_id, table: '' })}>
+                        {row.record_id.slice(0, 8)}
+                      </button>
+                      <span className="text-zinc-500">by <span className="text-zinc-800 dark:text-zinc-200">{row.actor}</span></span>
+                      <span className="ml-auto text-xs text-zinc-400">
+                        {when.toLocaleDateString('en-SA')} {when.toLocaleTimeString('en-SA', { hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                    </div>
+                    {fields.length > 0 && (
+                      <dl className="grid gap-1 text-xs sm:grid-cols-2">
+                        {fields.map(([field, value]) => (
+                          <div key={field} className="flex items-center gap-2 min-w-0">
+                            <dt className="text-zinc-500 shrink-0">{label(field)}:</dt>
+                            {row.action === 'UPDATE' ? (
+                              <dd className="flex items-center gap-1 min-w-0">
+                                <span className="text-rose-600 dark:text-rose-400 line-through truncate">{show((value as { from: unknown }).from)}</span>
+                                <ArrowRight className="h-3 w-3 text-zinc-400 shrink-0" />
+                                <span className="text-emerald-700 dark:text-emerald-400 font-medium truncate">{show((value as { to: unknown }).to)}</span>
+                              </dd>
+                            ) : (
+                              <dd className="truncate">{show(value)}</dd>
+                            )}
+                          </div>
+                        ))}
+                      </dl>
+                    )}
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+          <div className="flex items-center justify-between">
+            <Button variant="outline" size="sm" disabled={filters.page === 0}
+              onClick={() => { setLoading(true); setFilters(p => ({ ...p, page: p.page - 1 })); }}>
+              <ChevronLeft className="h-4 w-4" />Newer
+            </Button>
+            <span className="text-xs text-zinc-500">Page {filters.page + 1} of {pages}</span>
+            <Button variant="outline" size="sm" disabled={filters.page + 1 >= pages}
+              onClick={() => { setLoading(true); setFilters(p => ({ ...p, page: p.page + 1 })); }}>
+              Older<ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
+        </>
+      )}
     </div>
+  );
+}
+
+export default function AdminAuditLogPage() {
+  // useSearchParams needs a Suspense boundary for static rendering.
+  return (
+    <Suspense fallback={<div className="text-center text-zinc-400 py-12 text-sm">Loading audit log...</div>}>
+      <AuditLog />
+    </Suspense>
   );
 }

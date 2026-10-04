@@ -1,7 +1,9 @@
+import { riyadhToday } from '@/lib/dates';
 import { createClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
+import { getAppRole } from '@/lib/auth/roles';
 
 const DOMAIN = 'driverfinance.internal';
 
@@ -23,7 +25,7 @@ export async function POST(request: NextRequest) {
   );
 
   const { data: { user } } = await supabaseAuth.auth.getUser();
-  if (!user || user.user_metadata?.role !== 'admin') {
+  if (!user || getAppRole(user) !== 'admin') {
     return NextResponse.json({ message: 'Unauthorized' }, { status: 403 });
   }
 
@@ -46,10 +48,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ message: 'Driver not found' }, { status: 404 });
     }
 
-    // Update the auth user's metadata to include partner role
-    await adminClient.auth.admin.updateUserById(driver.linked_auth_id, {
-      user_metadata: { role: 'partner', name: driver.name, username: driver.username },
-    });
+    const { data: existingPartner } = await adminClient
+      .from('partners')
+      .select('id')
+      .eq('linked_auth_id', driver.linked_auth_id)
+      .maybeSingle();
+    if (existingPartner) {
+      return NextResponse.json({ message: 'This driver is already a partner' }, { status: 409 });
+    }
 
     const { data: partnerData, error: partnerErr } = await adminClient
       .from('partners')
@@ -64,6 +70,23 @@ export async function POST(request: NextRequest) {
 
     if (partnerErr) {
       return NextResponse.json({ message: partnerErr.message }, { status: 500 });
+    }
+
+    // D6: the account keeps its driver role and gains the partner role, so the
+    // person can use both portals. Roles live in app_metadata (service-role only).
+    const { data: authUser } = await adminClient.auth.admin.getUserById(driver.linked_auth_id);
+    const appMetadata = authUser?.user?.app_metadata ?? {};
+    const roles = new Set<string>(Array.isArray(appMetadata.roles) ? appMetadata.roles : []);
+    roles.add('driver');
+    roles.add('partner');
+
+    const { error: roleErr } = await adminClient.auth.admin.updateUserById(driver.linked_auth_id, {
+      app_metadata: { ...appMetadata, role: appMetadata.role ?? 'driver', roles: [...roles] },
+    });
+    if (roleErr) {
+      // Undo the partner row so the promotion can simply be retried.
+      await adminClient.from('partners').delete().eq('id', partnerData.id);
+      return NextResponse.json({ message: roleErr.message }, { status: 500 });
     }
 
     return NextResponse.json({ partnerId: partnerData.id }, { status: 201 });
@@ -90,7 +113,8 @@ export async function POST(request: NextRequest) {
     email,
     password,
     email_confirm: true,
-    user_metadata: { role: 'partner', name, username: cleanUsername },
+    app_metadata: { role: 'partner', roles: ['partner'] },
+    user_metadata: { name, username: cleanUsername },
   });
 
   if (authError) {
@@ -104,7 +128,7 @@ export async function POST(request: NextRequest) {
       username: cleanUsername,
       linked_auth_id: authData.user.id,
       status,
-      joined_date: new Date().toISOString().split('T')[0],
+      joined_date: riyadhToday(),
     })
     .select('id')
     .single();

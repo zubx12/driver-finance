@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { PlusCircle, Receipt, Car, Wallet, FileText, ArrowDownToLine, ArrowUpFromLine, Users } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useDriver } from '@/contexts/DriverContext';
+import { useMyExpenses, useMyHandovers, useMyRides } from '@/lib/db/use-my-entries';
 import {
   calculateCashInHand,
   calculateTotalRevenue,
@@ -24,9 +25,9 @@ export default function DriverDashboard() {
   const { driverName, vehicleMake, vehicleModel, vehiclePlate, vehicleId, loading } = useDriver();
   const [period, setPeriod] = useState('Today');
 
-  const allRides     = useLiveQuery(() => db.rides.toArray(), [], []);
-  const allExpenses  = useLiveQuery(() => db.expenses.toArray(), [], []);
-  const allHandovers = useLiveQuery(() => db.cashHandovers.toArray(), [], []);
+  const allRides     = useMyRides() ?? [];
+  const allExpenses  = useMyExpenses() ?? [];
+  const allHandovers = useMyHandovers() ?? [];
   const allAdvances  = useLiveQuery(() => db.advances.toArray(), [], []);
 
   const filterByPeriod = (itemDate: string) => {

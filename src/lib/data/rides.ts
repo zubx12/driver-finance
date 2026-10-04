@@ -1,5 +1,5 @@
+import { riyadhToday } from '@/lib/dates';
 import { createClient } from '@/lib/supabase/client';
-import { createServerClient } from '@supabase/ssr';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -51,7 +51,7 @@ export async function getDriverRides(
 
 /** Get rides for a specific driver for today. Used for "My Day" view. */
 export async function getDriverTodayRides(driverId: string): Promise<DbRide[]> {
-  const today = new Date().toISOString().split('T')[0];
+  const today = riyadhToday();
   return getDriverRides(driverId, today, today);
 }
 
@@ -85,43 +85,4 @@ export async function updateRide(
   return data;
 }
 
-// ─── Admin queries ────────────────────────────────────────────────────────────
 
-/** Admin: get all rides for a vehicle within a period. */
-export async function getVehicleRides(
-  vehicleId: string,
-  start: string,
-  end: string
-): Promise<DbRide[]> {
-  const supabase = createClient();
-  const { data, error } = await supabase
-    .from('rides')
-    .select('*')
-    .eq('vehicle_id', vehicleId)
-    .gte('ride_date', start)
-    .lte('ride_date', end)
-    .order('ride_date', { ascending: false });
-
-  if (error) throw new Error(`getVehicleRides: ${error.message}`);
-  return data ?? [];
-}
-
-/** Admin: get all rides across all vehicles with optional filters. */
-export async function getAllRides(filters?: {
-  vehicleId?: string;
-  driverId?: string;
-  start?: string;
-  end?: string;
-}): Promise<DbRide[]> {
-  const supabase = createClient();
-  let query = supabase.from('rides').select('*');
-
-  if (filters?.vehicleId) query = query.eq('vehicle_id', filters.vehicleId);
-  if (filters?.driverId) query = query.eq('driver_id', filters.driverId);
-  if (filters?.start) query = query.gte('ride_date', filters.start);
-  if (filters?.end) query = query.lte('ride_date', filters.end);
-
-  const { data, error } = await query.order('ride_date', { ascending: false });
-  if (error) throw new Error(`getAllRides: ${error.message}`);
-  return data ?? [];
-}
