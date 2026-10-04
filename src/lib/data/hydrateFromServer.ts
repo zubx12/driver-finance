@@ -1,5 +1,6 @@
 import { db, type LocalRide, type LocalExpense } from '@/lib/db/dexie';
 import { createClient } from '@/lib/supabase/client';
+import { addDays, riyadhToday } from '@/lib/dates';
 
 /**
  * Hydrate IndexedDB (Dexie) from Supabase after login.
@@ -120,4 +121,48 @@ export async function refreshPaymentStatuses(driverId: string): Promise<number> 
   }
 
   return updated;
+}
+
+/**
+ * Cash handovers from the last 60 days: brings the office's decision
+ * (confirmed / disputed, with its note) back to the phone, and adds handovers
+ * missing on this phone (e.g. after changing phones). Never overwrites the
+ * driver's own unsynced handovers.
+ */
+export async function refreshHandovers(driverId: string): Promise<number> {
+  const since = addDays(riyadhToday(), -60);
+  const { data, error } = await createClient()
+    .from('cash_handovers')
+    .select('id, handover_date, amount, handed_to, reference, notes, vehicle_id, status, admin_note, created_at')
+    .eq('driver_id', driverId)
+    .gte('handover_date', since);
+  if (error || !data) return 0;
+
+  let changed = 0;
+  for (const h of data) {
+    const local = await db.cashHandovers.get(h.id);
+    if (local) {
+      if (local.syncStatus === 'synced' && (local.reviewStatus !== h.status || local.adminNote !== (h.admin_note ?? undefined))) {
+        await db.cashHandovers.update(h.id, { reviewStatus: h.status, adminNote: h.admin_note ?? undefined });
+        changed++;
+      }
+    } else {
+      await db.cashHandovers.add({
+        id: h.id,
+        date: h.handover_date,
+        amount: Number(h.amount),
+        handedTo: h.handed_to ?? '',
+        reference: h.reference ?? undefined,
+        notes: h.notes ?? undefined,
+        vehicleId: h.vehicle_id ?? undefined,
+        reviewStatus: h.status,
+        adminNote: h.admin_note ?? undefined,
+        driverId,
+        syncStatus: 'synced',
+        createdAt: h.created_at ? new Date(h.created_at).getTime() : Date.now(),
+      });
+      changed++;
+    }
+  }
+  return changed;
 }

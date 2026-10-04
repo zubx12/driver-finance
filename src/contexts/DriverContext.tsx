@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { createClient } from '@/lib/supabase/client';
-import { hydrateFromServer, refreshPaymentStatuses } from '@/lib/data/hydrateFromServer';
+import { hydrateFromServer, refreshPaymentStatuses, refreshHandovers } from '@/lib/data/hydrateFromServer';
 
 interface DriverProfile {
   driverId: string;
@@ -129,6 +129,8 @@ export function DriverProvider({ children }: { children: ReactNode }) {
       await hydrateFromServer(driver.id);
       // Always refresh payment statuses (even if Dexie already had data)
       await refreshPaymentStatuses(driver.id);
+      // Office decisions on cash handovers (confirmed / disputed).
+      await refreshHandovers(driver.id);
     } catch (err) {
       console.warn('[Hydrate] Failed to pull server data into Dexie:', err);
     }

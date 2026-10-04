@@ -1,7 +1,7 @@
 'use client';
 
 import { useLiveQuery } from 'dexie-react-hooks';
-import { db, type LocalRide, type LocalExpense } from '@/lib/db/dexie';
+import { db, type LocalRide, type LocalExpense, type LocalCashHandover } from '@/lib/db/dexie';
 import { useDriver } from '@/contexts/DriverContext';
 
 /**
@@ -27,6 +27,14 @@ export function useMyExpenses(): LocalExpense[] | undefined {
   const { driverId } = useDriver();
   return useLiveQuery(
     async () => (await db.expenses.orderBy('createdAt').reverse().toArray()).filter(e => isMine(e, driverId)),
+    [driverId],
+  );
+}
+
+export function useMyHandovers(): LocalCashHandover[] | undefined {
+  const { driverId } = useDriver();
+  return useLiveQuery(
+    async () => (await db.cashHandovers.orderBy('createdAt').reverse().toArray()).filter(h => isMine(h, driverId)),
     [driverId],
   );
 }

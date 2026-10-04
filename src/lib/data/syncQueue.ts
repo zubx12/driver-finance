@@ -1,4 +1,4 @@
-import { db, type LocalRide, type LocalExpense, type SyncStatus } from '@/lib/db/dexie';
+import { db, type LocalRide, type LocalExpense, type LocalCashHandover, type SyncStatus } from '@/lib/db/dexie';
 import { createClient } from '@/lib/supabase/client';
 import type { InsertExpensePayload } from '@/lib/data/expenses';
 
@@ -51,11 +51,13 @@ function toSyncError(error: { message: string; code?: string }): SyncError {
   return new SyncError(error.message, error.code, !!error.code && PERMANENT_ERROR_CODES.has(error.code));
 }
 
-type EntryTable = 'rides' | 'expenses';
+type EntryTable = 'rides' | 'expenses' | 'cash_handovers';
 type SyncChanges = { syncStatus?: SyncStatus; attempts?: number; nextAttemptAt?: number; lastError?: string };
 
 function updateLocal(table: EntryTable, id: string, changes: SyncChanges) {
-  return table === 'rides' ? db.rides.update(id, changes) : db.expenses.update(id, changes);
+  if (table === 'rides') return db.rides.update(id, changes);
+  if (table === 'expenses') return db.expenses.update(id, changes);
+  return db.cashHandovers.update(id, changes);
 }
 
 async function existsOnServer(table: EntryTable, id: string) {
@@ -64,7 +66,7 @@ async function existsOnServer(table: EntryTable, id: string) {
 }
 
 /** Record the outcome of one upload attempt on the local entry. */
-async function recordOutcome(table: EntryTable, rec: LocalRide | LocalExpense, err: unknown): Promise<keyof SyncResult> {
+async function recordOutcome(table: EntryTable, rec: LocalRide | LocalExpense | LocalCashHandover, err: unknown): Promise<keyof SyncResult> {
   const synced: SyncChanges = { syncStatus: 'synced', lastError: undefined, nextAttemptAt: undefined };
   if (!err) {
     await updateLocal(table, rec.id, synced);
@@ -199,6 +201,25 @@ async function applyEditMadeDuringUpload(table: 'rides' | 'expenses', id: string
   }
 }
 
+// ─── Cash handovers ───────────────────────────────────────────────────────────
+
+/** A handover the driver recorded; the office confirms or disputes it on the server. */
+async function pushHandover(handover: LocalCashHandover, ctx: SyncContext) {
+  const { error } = await createClient()
+    .from('cash_handovers')
+    .upsert({
+      id: handover.id,
+      driver_id: ctx.driverId,
+      vehicle_id: handover.vehicleId ?? ctx.vehicleId,
+      amount: handover.amount,
+      handover_date: handover.date,
+      handed_to: handover.handedTo || null,
+      reference: handover.reference || null,
+      notes: handover.notes || null,
+    }, { onConflict: 'id', ignoreDuplicates: true });
+  if (error) throw toSyncError(error);
+}
+
 // ─── Flush ────────────────────────────────────────────────────────────────────
 
 async function flush(ctx: SyncContext, force: boolean): Promise<SyncResult> {
@@ -218,6 +239,14 @@ async function flush(ctx: SyncContext, force: boolean): Promise<SyncResult> {
     let err: unknown = null;
     try { await pushExpense(expense, ctx); } catch (e) { err = e; }
     result[await recordOutcome('expenses', expense, err)]++;
+  }
+
+  const handovers = (await db.cashHandovers.where('syncStatus').anyOf('pending', 'failed').toArray())
+    .filter((h) => belongsTo(h, ctx.driverId) && isDue(h, force));
+  for (const handover of handovers) {
+    let err: unknown = null;
+    try { await pushHandover(handover, ctx); } catch (e) { err = e; }
+    result[await recordOutcome('cash_handovers', handover, err)]++;
   }
 
   return result;
@@ -240,26 +269,32 @@ export async function syncAll(ctx: SyncContext, force = false): Promise<SyncResu
 
 /** Entries not yet on the server, split by whether they will retry by themselves. */
 export async function getUnsyncedCounts(): Promise<{ pending: number; failed: number }> {
-  const [pendingRides, pendingExpenses, failedRides, failedExpenses] = await Promise.all([
-    db.rides.where('syncStatus').equals('pending').count(),
-    db.expenses.where('syncStatus').equals('pending').count(),
-    db.rides.where('syncStatus').equals('failed').count(),
-    db.expenses.where('syncStatus').equals('failed').count(),
-  ]);
-  return { pending: pendingRides + pendingExpenses, failed: failedRides + failedExpenses };
+  const count = (status: SyncStatus) => Promise.all([
+    db.rides.where('syncStatus').equals(status).count(),
+    db.expenses.where('syncStatus').equals(status).count(),
+    db.cashHandovers.where('syncStatus').equals(status).count(),
+  ]).then((counts) => counts.reduce((a, b) => a + b, 0));
+  const [pending, failed] = await Promise.all([count('pending'), count('failed')]);
+  return { pending, failed };
 }
 
 /** Driver tapped "Retry" on a rejected entry (e.g. after the office fixed their vehicle). */
-export async function retryEntry(kind: 'ride' | 'expense', id: string) {
-  await updateLocal(kind === 'ride' ? 'rides' : 'expenses', id, {
+type EntryKind = 'ride' | 'expense' | 'handover';
+const TABLE_FOR: Record<EntryKind, EntryTable> = { ride: 'rides', expense: 'expenses', handover: 'cash_handovers' };
+
+export async function retryEntry(kind: EntryKind, id: string) {
+  await updateLocal(TABLE_FOR[kind], id, {
     syncStatus: 'pending', attempts: 0, nextAttemptAt: undefined, lastError: undefined,
   });
 }
 
 /** Driver chose to throw away an entry the server rejected. Never used for synced entries. */
-export async function discardEntry(kind: 'ride' | 'expense', id: string) {
-  const rec = kind === 'ride' ? await db.rides.get(id) : await db.expenses.get(id);
+export async function discardEntry(kind: EntryKind, id: string) {
+  const rec = kind === 'ride' ? await db.rides.get(id)
+    : kind === 'expense' ? await db.expenses.get(id)
+    : await db.cashHandovers.get(id);
   if (!rec || rec.syncStatus === 'synced') return;
   if (kind === 'ride') await db.rides.delete(id);
-  else await db.expenses.delete(id);
+  else if (kind === 'expense') await db.expenses.delete(id);
+  else await db.cashHandovers.delete(id);
 }

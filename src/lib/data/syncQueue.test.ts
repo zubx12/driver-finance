@@ -78,7 +78,7 @@ const expense = (over: Partial<LocalExpense> = {}): LocalExpense => ({
 });
 
 beforeEach(async () => {
-  await Promise.all([db.rides.clear(), db.expenses.clear(), db.payers.clear()]);
+  await Promise.all([db.rides.clear(), db.expenses.clear(), db.payers.clear(), db.cashHandovers.clear()]);
   server.existing.clear();
   server.upserts.length = 0;
   server.uploads.length = 0;
@@ -253,6 +253,33 @@ describe('expenses', () => {
     expect(await syncAll(ctx)).toEqual({ synced: 0, retrying: 0, rejected: 1 });
     expect(server.uploads).toHaveLength(0);
     expect((await db.expenses.get(e.id))?.syncStatus).toBe('failed');
+  });
+});
+
+describe('cash handovers', () => {
+  it('uploads a handover with its own id, so re-sending cannot duplicate it', async () => {
+    await db.cashHandovers.add({
+      id: 'handover-1', date: '2026-10-04', amount: 3000, handedTo: 'Office manager',
+      reference: 'R-1', syncStatus: 'pending', createdAt: Date.now(), driverId: 'driver-1', vehicleId: 'vehicle-at-entry',
+    });
+
+    expect(await syncAll(ctx)).toEqual({ synced: 1, retrying: 0, rejected: 0 });
+    expect(server.upserts[0]).toMatchObject({
+      table: 'cash_handovers',
+      payload: { id: 'handover-1', driver_id: 'driver-1', vehicle_id: 'vehicle-at-entry', amount: 3000, handover_date: '2026-10-04', reference: 'R-1' },
+    });
+    expect((await db.cashHandovers.get('handover-1'))?.syncStatus).toBe('synced');
+  });
+
+  it('keeps a rejected handover with the reason, and counts it', async () => {
+    await db.cashHandovers.add({
+      id: 'handover-2', date: '2026-09-01', amount: 500, handedTo: 'Office', syncStatus: 'pending', createdAt: Date.now(),
+    });
+    server.upsertError = { message: 'Handovers older than 7 days cannot be added from the app.', code: '23514' };
+
+    expect(await syncAll(ctx)).toEqual({ synced: 0, retrying: 0, rejected: 1 });
+    expect(await db.cashHandovers.get('handover-2')).toMatchObject({ syncStatus: 'failed' });
+    expect(await getUnsyncedCounts()).toEqual({ pending: 0, failed: 1 });
   });
 });
 

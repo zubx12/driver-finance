@@ -3,7 +3,6 @@ import { riyadhToday } from '@/lib/dates';
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '@/lib/db/dexie';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -11,14 +10,14 @@ import { Label } from '@/components/ui/label';
 import { ArrowLeft, CheckCircle2, AlertTriangle, Scale } from 'lucide-react';
 import Link from 'next/link';
 import { calculateCashInHand } from '@/lib/finance-service';
-import { useMyExpenses, useMyRides } from '@/lib/db/use-my-entries';
+import { useMyExpenses, useMyHandovers, useMyRides } from '@/lib/db/use-my-entries';
 
 export default function CashReconciliationPage() {
   const router = useRouter();
   
   const allRides = useMyRides() ?? [];
   const allExpenses = useMyExpenses() ?? [];
-  const allHandovers = useLiveQuery(() => db.cashHandovers.toArray(), [], []);
+  const allHandovers = useMyHandovers() ?? [];
 
   const [actualCash, setActualCash] = useState('');
   const [reason, setReason] = useState('');

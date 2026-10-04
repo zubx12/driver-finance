@@ -1,12 +1,10 @@
 'use client';
 
-import { useLiveQuery } from 'dexie-react-hooks';
-import { db } from '@/lib/db/dexie';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, ArrowDownToLine, ArrowUpFromLine, PlusCircle, CheckCircle } from 'lucide-react';
 import Link from 'next/link';
-import { useMyExpenses, useMyRides } from '@/lib/db/use-my-entries';
+import { useMyExpenses, useMyHandovers, useMyRides } from '@/lib/db/use-my-entries';
 import {
   calculateCashInHand,
   generateLedger, 
@@ -19,7 +17,7 @@ import {
 export default function DriverCashPage() {
   const allRides = useMyRides() ?? [];
   const allExpenses = useMyExpenses() ?? [];
-  const allHandovers = useLiveQuery(() => db.cashHandovers.toArray(), [], []);
+  const allHandovers = useMyHandovers() ?? [];
 
   const cashInHand = calculateCashInHand(allRides, allExpenses, allHandovers);
   const ledger = generateLedger(allRides, allExpenses, allHandovers).reverse(); // Newest first
@@ -92,6 +90,39 @@ export default function DriverCashPage() {
             </Button>
           </Link>
         </div>
+
+        {/* MY HANDOVERS: where each one stands with the office */}
+        {allHandovers.length > 0 && (
+          <div className="space-y-3">
+            <h2 className="font-bold text-lg px-1">My Handovers</h2>
+            {allHandovers.slice(0, 10).map((h) => {
+              const state = h.syncStatus === 'failed' ? 'rejected'
+                : h.syncStatus !== 'synced' ? 'uploading'
+                : h.reviewStatus ?? 'submitted';
+              const label = {
+                uploading: { text: 'Waiting to upload', cls: 'text-amber-600' },
+                rejected: { text: 'Not accepted', cls: 'text-rose-600' },
+                submitted: { text: 'Waiting for the office', cls: 'text-indigo-600' },
+                confirmed: { text: 'Confirmed by the office', cls: 'text-emerald-600' },
+                disputed: { text: 'Disputed by the office', cls: 'text-rose-600' },
+              }[state];
+              return (
+                <Card key={h.id} className="border-zinc-200 shadow-sm">
+                  <CardContent className="p-4 flex items-start justify-between gap-3">
+                    <div>
+                      <div className="font-semibold">SAR {h.amount.toLocaleString()}</div>
+                      <div className="text-xs text-zinc-500">{h.date}{h.handedTo ? ` · to ${h.handedTo}` : ''}{h.reference ? ` · ${h.reference}` : ''}</div>
+                      {(h.adminNote || h.lastError) && (
+                        <div className="text-xs text-zinc-600 mt-1">{state === 'rejected' ? h.lastError : `Office: ${h.adminNote}`}</div>
+                      )}
+                    </div>
+                    <span className={`text-xs font-semibold text-right ${label.cls}`}>{label.text}</span>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+        )}
 
         {/* CASH LEDGER */}
         <div className="space-y-4">

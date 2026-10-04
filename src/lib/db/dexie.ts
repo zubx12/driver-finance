@@ -56,14 +56,18 @@ export interface LocalExpense extends SyncFields {
   createdAt: number;
 }
 
-export interface LocalCashHandover {
-  id: string;
+export interface LocalCashHandover extends SyncFields {
+  id: string; // also the server id once synced
   date: string; // YYYY-MM-DD
   amount: number;
   handedTo: string;
   reference?: string;
   notes?: string;
-  syncStatus: 'pending' | 'synced' | 'failed';
+  /** Vehicle at the time of the handover (information for the office). */
+  vehicleId?: string;
+  /** The office's decision, refreshed from the server after upload. */
+  reviewStatus?: 'submitted' | 'confirmed' | 'disputed';
+  adminNote?: string;
   createdAt: number;
 }
 
