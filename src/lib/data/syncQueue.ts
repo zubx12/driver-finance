@@ -177,6 +177,7 @@ async function pushExpense(expense: LocalExpense, ctx: SyncContext) {
       : expense.paymentSource === 'Bank Transfer'
       ? 'Transfer'
       : 'Card',
+    paid_by: expense.paymentSource === 'Cash' || expense.paymentSource === 'Own Money' ? 'driver' : 'company',
     description: expense.description,
     receipt_image_url: receiptPath,
     expense_date: expense.date,

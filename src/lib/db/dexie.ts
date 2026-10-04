@@ -50,7 +50,8 @@ export interface LocalExpense extends SyncFields {
   category: string;
   allocation: 'Current Vehicle' | 'Driver' | 'Other / Company';
   vehicleId?: string;
-  paymentSource: 'Cash' | 'Company Card' | 'Bank Transfer' | 'Other';
+  /** 'Own Money': the driver's own pocket/card; the office owes it back (paid_by driver). */
+  paymentSource: 'Cash' | 'Own Money' | 'Company Card' | 'Bank Transfer' | 'Other';
   description?: string; // Replaces remarks
   receiptImageBase64?: string; // Now optional conditionally
   createdAt: number;

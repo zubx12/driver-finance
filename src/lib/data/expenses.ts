@@ -11,6 +11,7 @@ export interface DbExpense {
   amount: number;
   category: string;
   payment_method: 'Cash' | 'Card' | 'Transfer';
+  paid_by: ExpensePaidBy;
   description?: string;
   receipt_image_url: string; // NOT NULL in DB — always required
   expense_date: string; // YYYY-MM-DD
@@ -21,6 +22,12 @@ export interface DbExpense {
 /** Only 'Vehicle' expenses reduce a vehicle's net (docs/payout-rules.md, D5). */
 export type ExpenseAllocation = 'Vehicle' | 'Driver' | 'Company';
 
+/**
+ * Whose money paid the expense (Phase 7C). Only 'driver' counts in the
+ * driver's monthly settlement: paid from cash in hand or the driver's own pocket.
+ */
+export type ExpensePaidBy = 'driver' | 'company' | 'office';
+
 export interface InsertExpensePayload {
   driver_id: string;
   vehicle_id: string | null; // null unless allocation is 'Vehicle'
@@ -28,6 +35,7 @@ export interface InsertExpensePayload {
   amount: number;
   category: string;
   payment_method: 'Cash' | 'Card' | 'Transfer';
+  paid_by?: ExpensePaidBy; // derived from payment_method by the server if omitted
   description?: string;
   receipt_image_url: string; // Must be uploaded to Storage first
   expense_date: string;

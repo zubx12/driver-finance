@@ -127,6 +127,21 @@ Each step: database migration + tests, then screens, then build + commit.
 | **7F** | Monthly vehicle report and driver statement (print/PDF/CSV) | 7A-7E |
 | **7G** | Month-end close: an order and a checklist. Finalize vehicle payouts → settle drivers → pay partners; warnings for unconfirmed handovers, drivers holding cash, unreviewed expenses | 7D, 7E |
 
+Status (2026-10-04): 7A, 7B done (PR #1); 7C, 7D done on branch feat/money-flow-7c-7d.
+
+Rules settled while building 7C/7D:
+- **Who paid** is `driver` (cash in hand, or the driver's own money/card, which
+  the office repays), `company` (company card / transfer) or `office`. Older
+  app versions that do not send it get `driver` for cash and `company` otherwise.
+- A month can be settled only after it has ended, every vehicle payout with the
+  driver's rides, expenses or pay is **finalized**, and every handover in it is
+  **reviewed**. Months settle in order.
+- At settlement the office records what is paid now (either direction, cash or
+  bank transfer, with a reference); the rest is carried to next month.
+- A settled month **locks** what it counted: cash rides, vouchers the driver
+  collected, driver-paid expenses and handovers. The latest settled month can be
+  reopened with a reason (kept in the audit log).
+
 Then the remaining usability work and Phase 8 (lint backlog, pilot).
 
 ## 7. Before any of this goes live
