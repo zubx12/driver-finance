@@ -18,7 +18,7 @@ interface DriverPay {
 }
 interface Calc {
   id: string; vehicleLabel: string; period: string;
-  totalRevenue: number; totalExpenses: number; companyExpenses: number;
+  totalRevenue: number; totalExpenses: number; companyExpenses: number; chargedExpenses: number;
   netRevenue: number; driverPayTotal: number; companyRetained: number;
   lossIn: number; lossOut: number;
   status: 'draft' | 'finalized'; adminNotes: string; warnings: string[];
@@ -28,7 +28,7 @@ interface RunResult { vehicle: string; status: 'calculated' | 'skipped_finalized
 
 interface CalcRow {
   id: string; period_start: string; status: 'draft' | 'finalized'; admin_notes: string | null;
-  total_revenue: number; total_expenses: number; company_expenses: number | null; net_revenue: number;
+  total_revenue: number; total_expenses: number; company_expenses: number | null; charged_expenses: number | null; net_revenue: number;
   driver_pay_total: number; company_retained: number; loss_brought_forward: number; loss_carried_forward: number;
   warnings: { message?: string }[] | null;
   vehicles: { make: string; model: string; plate_number: string } | null;
@@ -51,6 +51,7 @@ function toCalc(c: CalcRow): Calc {
     totalRevenue: Number(c.total_revenue),
     totalExpenses: Number(c.total_expenses),
     companyExpenses: Number(c.company_expenses ?? 0),
+    chargedExpenses: Number(c.charged_expenses ?? 0),
     netRevenue: Number(c.net_revenue),
     driverPayTotal: Number(c.driver_pay_total),
     companyRetained: Number(c.company_retained),
@@ -80,7 +81,7 @@ function toCalc(c: CalcRow): Calc {
 async function fetchCalcs(month: string): Promise<{ calcs?: Calc[]; error?: string }> {
   const { data, error } = await createClient()
     .from('salary_calculations')
-    .select(`id, period_start, status, admin_notes, total_revenue, total_expenses, company_expenses, net_revenue,
+    .select(`id, period_start, status, admin_notes, total_revenue, total_expenses, company_expenses, charged_expenses, net_revenue,
              driver_pay_total, company_retained, loss_brought_forward, loss_carried_forward, warnings,
              vehicles(make, model, plate_number),
              salary_calculation_shares(ownership_percentage, share_amount, partners(name)),
@@ -289,7 +290,7 @@ export default function AdminSalaryPage() {
                   <CardContent className="p-0">
                     <div className="grid grid-cols-3 divide-x divide-zinc-100 dark:divide-zinc-800 border-b border-zinc-100 dark:border-zinc-800">
                       <div className="p-4 text-center"><div className="text-[10px] uppercase font-bold text-zinc-400 mb-1">Revenue</div><div className="font-medium text-sm">SAR {fmt(calc.totalRevenue)}</div></div>
-                      <div className="p-4 text-center"><div className="text-[10px] uppercase font-bold text-zinc-400 mb-1">Expenses</div><div className="font-medium text-sm text-rose-600 dark:text-rose-400">-SAR {fmt(calc.totalExpenses + calc.companyExpenses)}</div></div>
+                      <div className="p-4 text-center"><div className="text-[10px] uppercase font-bold text-zinc-400 mb-1">Expenses</div><div className="font-medium text-sm text-rose-600 dark:text-rose-400">-SAR {fmt(calc.totalExpenses + calc.companyExpenses + calc.chargedExpenses)}</div></div>
                       <div className="p-4 text-center bg-indigo-50/50 dark:bg-indigo-900/10"><div className="text-[10px] uppercase font-bold text-indigo-500 mb-1">Net</div><div className="font-bold text-sm text-indigo-700 dark:text-indigo-400">SAR {fmt(calc.netRevenue)}</div></div>
                     </div>
 
@@ -403,6 +404,7 @@ export default function AdminSalaryPage() {
                                 ['Revenue', calc.totalRevenue],
                                 ['Vehicle expenses', -calc.totalExpenses],
                                 ['Company expenses', -calc.companyExpenses],
+                                ['Driver/company expenses charged here', -calc.chargedExpenses],
                                 ['Net', calc.netRevenue],
                                 ['Driver pay', -calc.driverPayTotal],
                                 ['Loss brought forward', -calc.lossIn],
