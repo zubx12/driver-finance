@@ -13,6 +13,7 @@ interface Partner {
   username: string | null;
   status: string;
   active_vehicles_count: number;
+  is_driver?: boolean;
 }
 
 const PAGE_LIMIT = 50;
@@ -99,6 +100,11 @@ export default function PartnersList() {
                         <Briefcase className="h-4 w-4" />
                       </div>
                       {partner.name}
+                      {partner.is_driver && (
+                        <span className="text-[10px] font-bold uppercase bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300 px-1.5 py-0.5 rounded" title="This person also drives: driver pay and partner share are paid separately.">
+                          Also driver
+                        </span>
+                      )}
                     </td>
                     <td className="px-6 py-4 text-zinc-500 font-mono">
                       {partner.username ? `@${partner.username}` : <span className="text-zinc-300 italic">not set</span>}

@@ -87,6 +87,11 @@ Splits and driver pay terms are applied to the days they were actually in force.
 - Their driver pay and their partner share are calculated **independently** and
   shown as two separate lines. Neither replaces the other.
 - The admin screens flag such people so it is always visible and intentional.
+- Implemented: the main role stays in `app_metadata.role` (it decides admin
+  access and the landing page); all roles are in `app_metadata.roles`.
+  "Promote driver to partner" adds the partner role instead of replacing the
+  driver role. Data access needs no change: driver and partner policies are
+  based on ownership (`linked_auth_id`), not on the role.
 
 ## D7 — The unused `calculate-salary` edge function
 

@@ -47,15 +47,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ message: 'Driver not found' }, { status: 404 });
     }
 
-    // Switch the account's role to partner. Role lives in app_metadata (service-role only).
-    // NOTE: this keeps the existing behaviour of replacing the driver role; how a
-    // driver-partner should work is remediation decision D6.
-    const { error: roleErr } = await adminClient.auth.admin.updateUserById(driver.linked_auth_id, {
-      app_metadata: { role: 'partner' },
-      user_metadata: { name: driver.name, username: driver.username },
-    });
-    if (roleErr) {
-      return NextResponse.json({ message: roleErr.message }, { status: 500 });
+    const { data: existingPartner } = await adminClient
+      .from('partners')
+      .select('id')
+      .eq('linked_auth_id', driver.linked_auth_id)
+      .maybeSingle();
+    if (existingPartner) {
+      return NextResponse.json({ message: 'This driver is already a partner' }, { status: 409 });
     }
 
     const { data: partnerData, error: partnerErr } = await adminClient
@@ -71,6 +69,23 @@ export async function POST(request: NextRequest) {
 
     if (partnerErr) {
       return NextResponse.json({ message: partnerErr.message }, { status: 500 });
+    }
+
+    // D6: the account keeps its driver role and gains the partner role, so the
+    // person can use both portals. Roles live in app_metadata (service-role only).
+    const { data: authUser } = await adminClient.auth.admin.getUserById(driver.linked_auth_id);
+    const appMetadata = authUser?.user?.app_metadata ?? {};
+    const roles = new Set<string>(Array.isArray(appMetadata.roles) ? appMetadata.roles : []);
+    roles.add('driver');
+    roles.add('partner');
+
+    const { error: roleErr } = await adminClient.auth.admin.updateUserById(driver.linked_auth_id, {
+      app_metadata: { ...appMetadata, role: appMetadata.role ?? 'driver', roles: [...roles] },
+    });
+    if (roleErr) {
+      // Undo the partner row so the promotion can simply be retried.
+      await adminClient.from('partners').delete().eq('id', partnerData.id);
+      return NextResponse.json({ message: roleErr.message }, { status: 500 });
     }
 
     return NextResponse.json({ partnerId: partnerData.id }, { status: 201 });
@@ -97,7 +112,7 @@ export async function POST(request: NextRequest) {
     email,
     password,
     email_confirm: true,
-    app_metadata: { role: 'partner' },
+    app_metadata: { role: 'partner', roles: ['partner'] },
     user_metadata: { name, username: cleanUsername },
   });
 

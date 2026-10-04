@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Shield, Briefcase, Car, User, Mail, Key, ArrowRight, AlertCircle } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
-import { getAppRole } from '@/lib/auth/roles';
+import { homePath } from '@/lib/auth/roles';
 
 type Role = 'admin' | 'partner' | 'driver';
 
@@ -51,19 +51,14 @@ export default function LoginPage() {
         return;
       }
 
-      // Redirect based on role stored in user metadata
-      const role = getAppRole(result.data.user);
-      if (role === 'driver') {
-        router.push('/driver');
-      } else if (role === 'partner') {
-        router.push('/partner');
-      } else if (role === 'admin') {
-        router.push('/admin');
-      } else {
+      // Redirect to the portal for the account's role (app_metadata only).
+      const home = homePath(result.data.user);
+      if (!home) {
         setError('Your account role is not recognized. Please contact an administrator.');
         await supabase.auth.signOut();
         return;
       }
+      router.push(home);
       router.refresh();
 
     } catch {

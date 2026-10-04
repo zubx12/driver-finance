@@ -4,6 +4,7 @@ import { usePartner } from '@/contexts/PartnerContext';
 import { createClient } from '@/lib/supabase/client';
 import { useRouter } from 'next/navigation';
 import { User, Calendar, Shield, LogOut, ChevronRight } from 'lucide-react';
+import { PortalSwitch } from '@/components/PortalSwitch';
 
 export default function PartnerSettingsPage() {
   const { partnerName, username, status, joinedDate, loading } = usePartner();
@@ -64,6 +65,8 @@ export default function PartnerSettingsPage() {
           </div>
         )}
       </div>
+
+      <PortalSwitch to="driver" />
 
       {/* Logout */}
       <button

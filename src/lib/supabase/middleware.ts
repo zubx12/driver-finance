@@ -1,6 +1,6 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
-import { getAppRole } from '@/lib/auth/roles'
+import { getAppRole, hasAppRole, homePath } from '@/lib/auth/roles'
 
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request })
@@ -40,42 +40,31 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url)
   }
 
-  // Authenticated users on login or root page: redirect to their portal
-  if (user && (isAuthRoute || pathname === '/')) {
-    const role = getAppRole(user)
+  const home = user ? homePath(user) : undefined
+
+  // Authenticated users on login or root page: redirect to their portal.
+  // Users with no role stay on /login (it signs them out with a message);
+  // redirecting them would loop.
+  if (user && (isAuthRoute || pathname === '/') && home) {
     const url = request.nextUrl.clone()
-    url.pathname = role === 'driver' ? '/driver'
-      : role === 'partner' ? '/partner'
-      : '/admin'
+    url.pathname = home
     return NextResponse.redirect(url)
   }
 
-  // Role-based route protection
+  // Role-based route protection. A driver who is also a partner (D6) may use
+  // both portals; admins may open any portal.
   // NOTE: RLS is the real security boundary. This is a UX redirect only.
   if (user) {
-    const role = getAppRole(user)
+    const isAdmin = getAppRole(user) === 'admin'
+    const allowed =
+      pathname.startsWith('/admin') ? isAdmin
+      : pathname.startsWith('/driver') ? isAdmin || hasAppRole(user, 'driver')
+      : pathname.startsWith('/partner') ? isAdmin || hasAppRole(user, 'partner')
+      : true
 
-    const isDriverRoute = pathname.startsWith('/driver')
-    const isPartnerRoute = pathname.startsWith('/partner')
-    const isAdminRoute = pathname.startsWith('/admin')
-
-    if (isDriverRoute && role !== 'driver' && role !== 'admin') {
+    if (!allowed) {
       const url = request.nextUrl.clone()
-      url.pathname = role === 'partner' ? '/partner' : '/login'
-      return NextResponse.redirect(url)
-    }
-
-    if (isPartnerRoute && role !== 'partner' && role !== 'admin') {
-      const url = request.nextUrl.clone()
-      url.pathname = role === 'driver' ? '/driver' : '/login'
-      return NextResponse.redirect(url)
-    }
-
-    if (isAdminRoute && role !== 'admin') {
-      const url = request.nextUrl.clone()
-      url.pathname = role === 'driver' ? '/driver'
-        : role === 'partner' ? '/partner'
-        : '/login'
+      url.pathname = home ?? '/login'
       return NextResponse.redirect(url)
     }
   }

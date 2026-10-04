@@ -30,7 +30,7 @@ export async function GET(request: NextRequest) {
 
   let query = admin
     .from('drivers')
-    .select('id, name, username, status, vehicle_id, vehicles(make, model, plate_number)', { count: 'exact' });
+    .select('id, name, username, status, vehicle_id, linked_auth_id, vehicles(make, model, plate_number)', { count: 'exact' });
 
   if (search) {
     query = query.or(`name.ilike.%${search}%,username.ilike.%${search}%`);
@@ -49,8 +49,19 @@ export async function GET(request: NextRequest) {
 
   if (error) return NextResponse.json({ message: error.message }, { status: 500 });
 
+  // D6: flag drivers who are also partners, so it is always visible.
+  const authIds = (data ?? []).map((d) => d.linked_auth_id).filter(Boolean);
+  const { data: partnerLinks } = authIds.length
+    ? await admin.from('partners').select('linked_auth_id').in('linked_auth_id', authIds)
+    : { data: [] };
+  const partnerAuthIds = new Set((partnerLinks ?? []).map((p) => p.linked_auth_id));
+  const rows = (data ?? []).map(({ linked_auth_id, ...d }) => ({
+    ...d,
+    is_partner: !!linked_auth_id && partnerAuthIds.has(linked_auth_id),
+  }));
+
   const total = count ?? 0;
   const totalPages = Math.max(1, Math.ceil(total / limit));
 
-  return NextResponse.json({ data: data ?? [], total, page, totalPages });
+  return NextResponse.json({ data: rows, total, page, totalPages });
 }

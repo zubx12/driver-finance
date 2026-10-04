@@ -14,6 +14,7 @@ interface Driver {
   status: string;
   vehicle_id: string | null;
   vehicles: { make: string; model: string; plate_number: string } | null;
+  is_partner?: boolean;
 }
 
 const PAGE_LIMIT = 50;
@@ -100,6 +101,11 @@ export default function DriversList() {
                       <Link href={`/admin/drivers/${driver.id}`} className="text-indigo-600 hover:text-indigo-700 hover:underline">
                         {driver.name}
                       </Link>
+                      {driver.is_partner && (
+                        <span className="ml-2 text-[10px] font-bold uppercase bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300 px-1.5 py-0.5 rounded" title="This person is also a partner: driver pay and partner share are paid separately.">
+                          Also partner
+                        </span>
+                      )}
                     </td>
                     <td className="px-6 py-4 text-zinc-500 font-mono">
                       {driver.username ? `@${driver.username}` : <span className="text-zinc-300 italic">not set</span>}

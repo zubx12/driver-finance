@@ -56,7 +56,7 @@ export async function POST(request: NextRequest) {
     password,
     email_confirm: true,
     // Role lives in app_metadata (service-role only); user_metadata is user-editable.
-    app_metadata: { role: 'driver' },
+    app_metadata: { role: 'driver', roles: ['driver'] },
     user_metadata: { name, username: cleanUsername },
   });
 

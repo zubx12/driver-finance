@@ -10,8 +10,8 @@
  *   - linked to a row in `drivers`  -> 'driver'
  *   - listed in --admins            -> 'admin'
  *   - anything else                 -> no role (cannot use the app)
- * (A user linked to both drivers and partners keeps today's behaviour, which
- * is 'partner'. See remediation decision D6.)
+ * A user linked to both drivers and partners gets main role 'driver' and
+ * roles ['driver', 'partner'] so they can use both portals (decision D6).
  *
  * Usage (dry run, prints the plan):
  *   node --env-file=.env.local scripts/backfill-app-roles.mjs --admins owner@example.com
@@ -69,29 +69,44 @@ const [driverIds, partnerIds, users] = await Promise.all([
 const foundAdmins = new Set();
 const rows = users.map((u) => {
   const email = (u.email ?? '').toLowerCase();
+  const isDriver = driverIds.has(u.id);
+  const isPartner = partnerIds.has(u.id);
   let role = null;
+  let roles = [];
   if (adminEmails.has(email)) {
     role = 'admin';
+    roles = ['admin'];
     foundAdmins.add(email);
-  } else if (partnerIds.has(u.id)) role = 'partner';
-  else if (driverIds.has(u.id)) role = 'driver';
+  } else if (isDriver && isPartner) {
+    role = 'driver';
+    roles = ['driver', 'partner'];
+  } else if (isPartner) {
+    role = 'partner';
+    roles = ['partner'];
+  } else if (isDriver) {
+    role = 'driver';
+    roles = ['driver'];
+  }
 
   const claimed = u.user_metadata?.role ?? null;
   const current = u.app_metadata?.role ?? null;
+  const currentRoles = Array.isArray(u.app_metadata?.roles) ? u.app_metadata.roles : [];
   return {
     email,
     id: u.id,
     role,
+    roles,
     current,
     claimed,
     // user_metadata says admin but the user is not on the admin list: possible self-escalation.
     suspicious: claimed === 'admin' && role !== 'admin',
-    changed: role !== current,
+    changed: role !== current || roles.join(',') !== currentRoles.join(','),
   };
 });
 
-console.table(rows.map(({ email, role, current, claimed, suspicious }) => ({
-  email, 'new app role': role ?? '(none)', 'current app role': current ?? '(none)',
+console.table(rows.map(({ email, role, roles, current, claimed, suspicious }) => ({
+  email, 'new app role': role ?? '(none)', 'all roles': roles.join(' + ') || '(none)',
+  'current app role': current ?? '(none)',
   'user_metadata role': claimed ?? '(none)', suspicious: suspicious ? 'YES' : '',
 })));
 
@@ -116,7 +131,7 @@ let failed = 0;
 for (const r of toChange) {
   const user = users.find((u) => u.id === r.id);
   const { error } = await admin.auth.admin.updateUserById(r.id, {
-    app_metadata: { ...user.app_metadata, role: r.role },
+    app_metadata: { ...user.app_metadata, role: r.role, roles: r.roles },
   });
   if (error) {
     failed++;

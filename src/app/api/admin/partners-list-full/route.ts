@@ -31,7 +31,7 @@ export async function GET(request: NextRequest) {
   // Fetch partners and their active vehicle_partners count
   let query = admin
     .from('partners')
-    .select('id, name, username, status, vehicle_partners(id)', { count: 'exact' })
+    .select('id, name, username, status, linked_auth_id, vehicle_partners(id)', { count: 'exact' })
     .is('vehicle_partners.effective_to', null);
 
   if (search) {
@@ -47,14 +47,22 @@ export async function GET(request: NextRequest) {
 
   if (error) return NextResponse.json({ message: error.message }, { status: 500 });
 
+  // D6: flag partners who are also drivers, so it is always visible.
+  const authIds = (data ?? []).map((p) => p.linked_auth_id).filter(Boolean);
+  const { data: driverLinks } = authIds.length
+    ? await admin.from('drivers').select('linked_auth_id').in('linked_auth_id', authIds)
+    : { data: [] };
+  const driverAuthIds = new Set((driverLinks ?? []).map((d) => d.linked_auth_id));
+
   // Transform to get the count of vehicles
-  const formattedData = data?.map((p: any) => ({
+  const formattedData = (data ?? []).map((p) => ({
     id: p.id,
     name: p.name,
     username: p.username,
     status: p.status,
-    active_vehicles_count: p.vehicle_partners ? p.vehicle_partners.length : 0
-  })) ?? [];
+    active_vehicles_count: p.vehicle_partners ? p.vehicle_partners.length : 0,
+    is_driver: !!p.linked_auth_id && driverAuthIds.has(p.linked_auth_id),
+  }));
 
   const total = count ?? 0;
   const totalPages = Math.max(1, Math.ceil(total / limit));

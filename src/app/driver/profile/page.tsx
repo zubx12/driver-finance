@@ -5,6 +5,7 @@ import { ChevronLeft, Car, Percent, DollarSign, Gift, LogOut } from 'lucide-reac
 import { useDriver } from '@/contexts/DriverContext';
 import { createClient } from '@/lib/supabase/client';
 import { db } from '@/lib/db/dexie';
+import { PortalSwitch } from '@/components/PortalSwitch';
 
 export default function DriverProfilePage() {
   const { driverId, driverName, username, status, vehicleMake, vehicleModel, vehiclePlate, vehicleId, payType, commissionRate, fixedSalary, bonusRate, loading } = useDriver();
@@ -144,10 +145,14 @@ export default function DriverProfilePage() {
           )}
         </div>
 
+        <div className="mt-8">
+          <PortalSwitch to="partner" />
+        </div>
+
         {/* Logout Button */}
         <button
           onClick={handleLogout}
-          className="w-full flex items-center justify-between p-4 bg-white dark:bg-zinc-900 border border-rose-200 dark:border-rose-900/50 rounded-2xl text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/20 transition-colors mt-8"
+          className="w-full flex items-center justify-between p-4 bg-white dark:bg-zinc-900 border border-rose-200 dark:border-rose-900/50 rounded-2xl text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/20 transition-colors mt-3"
         >
           <div className="flex items-center gap-3">
             <LogOut className="h-4 w-4" />
