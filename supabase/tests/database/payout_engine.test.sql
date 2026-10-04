@@ -2,7 +2,7 @@
 -- Run with: supabase test db
 BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
-SELECT plan(43);
+SELECT plan(46);
 
 -- ─── Fixtures (as the migration owner) ───────────────────────────────────────
 INSERT INTO auth.users (id, email) VALUES
@@ -239,6 +239,36 @@ SET LOCAL request.jwt.claims = '{"sub":"00000000-0000-0000-0000-0000000000d1","r
 SELECT throws_ok($$ SELECT public.run_salary_month('2026-06-01') $$, '42501', NULL,
   'A driver cannot run payouts');
 RESET ROLE;
+
+-- ─── Example G (owner's description, 2026-10-04) ─────────────────────────────
+-- Month revenue 9,000; driver-paid expenses 2,000; office expenses 1,000;
+-- partners 60/40, no driver pay -> 6,000 to split -> 3,600 / 2,400.
+INSERT INTO public.vehicles (id, make, model, year, plate_number)
+VALUES ('11111111-0000-0000-0000-000000000013', 'Car', 'Owner example', 2024, 'OWNER-G');
+INSERT INTO public.vehicle_partners (vehicle_id, partner_id, percentage, effective_from) VALUES
+  ('11111111-0000-0000-0000-000000000013', '22222222-0000-0000-0000-000000000001', 60, '2026-01-01'),
+  ('11111111-0000-0000-0000-000000000013', '22222222-0000-0000-0000-000000000002', 40, '2026-01-01');
+INSERT INTO public.daily_summary (summary_date, driver_id, vehicle_id, total_revenue, total_expenses, net_revenue)
+VALUES ('2026-06-15', '33333333-0000-0000-0000-000000000001', '11111111-0000-0000-0000-000000000013', 9000, 2000, 7000);
+
+SET LOCAL ROLE authenticated;
+SET LOCAL request.jwt.claims = '{"sub":"00000000-0000-0000-0000-00000000000a","role":"authenticated","app_metadata":{"role":"admin"}}';
+SELECT public.calculate_salary('11111111-0000-0000-0000-000000000013', '2026-06-01');
+SELECT public.set_company_expenses((SELECT id FROM public.salary_calculations
+  WHERE vehicle_id = '11111111-0000-0000-0000-000000000013' AND period_start = '2026-06-01'), 1000, 'office expenses');
+RESET ROLE;
+
+SELECT is((SELECT net_revenue FROM public.salary_calculations
+           WHERE vehicle_id = '11111111-0000-0000-0000-000000000013' AND period_start = '2026-06-01'), 6000.00::numeric,
+  'G: 9,000 revenue - 2,000 driver expenses - 1,000 office expenses = 6,000');
+SELECT is((SELECT share_amount FROM public.salary_calculation_shares s
+           JOIN public.salary_calculations c ON c.id = s.calculation_id
+           WHERE c.vehicle_id = '11111111-0000-0000-0000-000000000013' AND s.partner_id = '22222222-0000-0000-0000-000000000001'), 3600.00::numeric,
+  'G: 60% partner gets 3,600');
+SELECT is((SELECT share_amount FROM public.salary_calculation_shares s
+           JOIN public.salary_calculations c ON c.id = s.calculation_id
+           WHERE c.vehicle_id = '11111111-0000-0000-0000-000000000013' AND s.partner_id = '22222222-0000-0000-0000-000000000002'), 2400.00::numeric,
+  'G: 40% partner gets 2,400');
 
 SELECT * FROM finish();
 ROLLBACK;

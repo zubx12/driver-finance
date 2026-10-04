@@ -131,3 +131,7 @@ goes to the largest share → **3.33 / 3.33 / 3.34** = 10.00.
 
 **F. Two commission drivers on one vehicle (D8):** A and B each 30%. A's own net
 5,000, B's own net 3,000 → A **1,500**, B **900** (not 30% of 8,000 each).
+
+**G. Owner's example (2026-10-04):** revenue 9,000, expenses paid by the driver
+2,000, office expenses 1,000, partners 60 / 40, no driver pay → balance
+**6,000** → **3,600 / 2,400**. See also [money-flow-plan.md](money-flow-plan.md).
