@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { ArrowLeft, ArrowDownToLine, ArrowUpFromLine, PlusCircle, CheckCircle } from 'lucide-react';
 import Link from 'next/link';
 import { useMyExpenses, useMyHandovers, useMyRides } from '@/lib/db/use-my-entries';
+import { MySettlementCard } from '@/components/driver/MySettlementCard';
 import {
   calculateCashInHand,
   generateLedger, 
@@ -90,6 +91,8 @@ export default function DriverCashPage() {
             </Button>
           </Link>
         </div>
+
+        <MySettlementCard />
 
         {/* MY HANDOVERS: where each one stands with the office */}
         {allHandovers.length > 0 && (
