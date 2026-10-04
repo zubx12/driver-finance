@@ -127,7 +127,20 @@ Each step: database migration + tests, then screens, then build + commit.
 | **7F** | Monthly vehicle report and driver statement (print/PDF/CSV) | 7A-7E |
 | **7G** | Month-end close: an order and a checklist. Finalize vehicle payouts → settle drivers → pay partners; warnings for unconfirmed handovers, drivers holding cash, unreviewed expenses | 7D, 7E |
 
-Status (2026-10-04): 7A, 7B done (PR #1); 7C, 7D done on branch feat/money-flow-7c-7d.
+Status (2026-10-04): 7A, 7B done (PR #1); 7C, 7D done (PR #2); 7E done on branch feat/money-flow-7e.
+
+Rules settled while building 7E:
+- Vouchers are handed over **when the office pays the partner's share**: those
+  of that vehicle-month still uncollected at that moment. Each partner gets
+  voucher × their percentage of the month; the rest of the share is paid in cash.
+- If the partner's part of the vouchers is more than their share (a month with
+  heavy expenses), the office keeps the vouchers and pays the share in cash.
+- A handed voucher collected by anyone other than the partner (driver, office,
+  another partner) shows as **owed to the partner**; the office pays that part
+  out and records it. When one partner collects a shared voucher, the other
+  partners' parts are owed to them the same way (the office settles it).
+- Partner shares can be paid only through `pay_partner_settlement()`; the old
+  service-role API route was removed.
 
 Rules settled while building 7C/7D:
 - **Who paid** is `driver` (cash in hand, or the driver's own money/card, which

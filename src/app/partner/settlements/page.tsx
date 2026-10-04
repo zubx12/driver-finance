@@ -19,6 +19,9 @@ interface Settlement {
   vehicle_name: string;
   plate_number: string;
   ownership_percentage: number;
+  cash_amount: number | null;
+  voucher_amount: number | null;
+  vouchers_kept_by_office: boolean | null;
 }
 
 export default function PartnerSettlementsPage() {
@@ -114,6 +117,12 @@ export default function PartnerSettlementsPage() {
                   <p className="text-xl font-bold text-indigo-600 dark:text-indigo-400">SAR {fmt(s.amount)}</p>
                 </div>
               </div>
+              {s.status === 'paid' && s.cash_amount != null && Number(s.voucher_amount) > 0 && (
+                <div className="text-xs text-zinc-600 dark:text-zinc-400 bg-indigo-50/60 dark:bg-indigo-950/20 rounded-lg p-2">
+                  Paid SAR {fmt(Number(s.cash_amount))} in cash + SAR {fmt(Number(s.voucher_amount))} in vouchers to collect
+                  (see <a href="/partner/vouchers" className="underline">Vouchers</a>).
+                </div>
+              )}
               {s.status === 'paid' && s.paid_at && (
                 <div className="flex items-center justify-between text-xs text-zinc-400 pt-1">
                   <span>Paid {fmtDate(s.paid_at)}</span>

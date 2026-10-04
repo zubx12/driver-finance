@@ -109,7 +109,7 @@ SELECT is((SELECT status FROM public.partner_period_summary(public.app_today()))
   'finalized payout is shown as finalized');
 
 SET LOCAL request.jwt.claims = '{"sub":"00000000-0000-0000-0000-00000000000a","role":"authenticated","app_metadata":{"role":"admin"}}';
-UPDATE public.settlements SET status = 'paid', paid_at = now() WHERE partner_id = 'b5000000-0000-0000-0000-000000000003';
+SELECT public.pay_partner_settlement(id, 'cash', 'R-1') FROM public.settlements WHERE partner_id = 'b5000000-0000-0000-0000-000000000003';
 SET LOCAL request.jwt.claims = '{"sub":"00000000-0000-0000-0000-0000000000e3","role":"authenticated","app_metadata":{"role":"partner"}}';
 SELECT is((SELECT status FROM public.partner_period_summary(public.app_today())), 'paid',
   'paid settlement is shown as paid');
