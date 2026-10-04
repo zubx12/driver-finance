@@ -9,57 +9,40 @@ import { db } from '@/lib/db/dexie';
 export default function DriverProfilePage() {
   const { driverId, driverName, username, status, vehicleMake, vehicleModel, vehiclePlate, vehicleId, payType, commissionRate, fixedSalary, bonusRate, loading } = useDriver();
 
+  // Entries that are not on the server yet are never deleted at sign-out. They
+  // stay on this phone tagged with this driver and upload at their next sign-in.
   const handleLogout = async () => {
-    // Check for unsynced data before allowing logout
-    const pendingRides = await db.rides.where('syncStatus').equals('pending').count();
-    const pendingExpenses = await db.expenses.where('syncStatus').equals('pending').count();
-    const totalPending = pendingRides + pendingExpenses;
+    const { syncAll, getUnsyncedCounts } = await import('@/lib/data/syncQueue');
 
-    if (totalPending > 0) {
-      if (navigator.onLine) {
-        // Attempt to sync everything before logout
-        const proceed = confirm(
-          `You have ${totalPending} unsynced record(s). ` +
-          'We will try to sync them now before signing out. Continue?'
-        );
-        if (!proceed) return;
+    let { pending, failed } = await getUnsyncedCounts();
+    if (pending + failed > 0 && navigator.onLine) {
+      await syncAll({ driverId, vehicleId: vehicleId ?? null }, true).catch(() => null);
+      ({ pending, failed } = await getUnsyncedCounts());
+    }
+    const unsynced = pending + failed;
 
-        try {
-          // Dynamic import to avoid circular deps
-          const { syncAll } = await import('@/lib/data/syncQueue');
-          const result = await syncAll(driverId, vehicleId ?? '');
-          const synced = result.ridesSucceeded + result.expensesSucceeded;
-          const failed = result.ridesFailed + result.expensesFailed;
+    if (unsynced > 0) {
+      const ok = confirm(
+        `${unsynced} entr${unsynced > 1 ? 'ies have' : 'y has'} not been uploaded yet. ` +
+        'They will stay saved on this phone and upload the next time you sign in here. Sign out anyway?'
+      );
+      if (!ok) return;
 
-          if (failed > 0) {
-            const forceLogout = confirm(
-              `Synced ${synced} record(s) successfully, but ${failed} failed to sync. ` +
-              'Signing out now will lose the failed records. Continue anyway?'
-            );
-            if (!forceLogout) return;
-          }
-        } catch (err) {
-          const forceLogout = confirm(
-            'Failed to sync data. Signing out now may lose unsynced records. Continue anyway?'
-          );
-          if (!forceLogout) return;
-        }
-      } else {
-        // Offline with pending data — strong warning
-        const proceed = confirm(
-          `⚠️ You are OFFLINE with ${totalPending} unsynced record(s). ` +
-          'Signing out will PERMANENTLY LOSE this data. ' +
-          'Please connect to the internet first, or continue at your own risk.'
-        );
-        if (!proceed) return;
-      }
+      // Older entries were not tagged with a driver; tag them so they can only
+      // ever upload under this driver's account.
+      await db.rides.filter(r => r.syncStatus !== 'synced' && !r.driverId).modify({ driverId });
+      await db.expenses.filter(e => e.syncStatus !== 'synced' && !e.driverId).modify({ driverId });
+
+      await createClient().auth.signOut();
+      // Remove only what is already safely on the server.
+      await db.rides.where('syncStatus').equals('synced').delete();
+      await db.expenses.where('syncStatus').equals('synced').delete();
     } else {
       if (!confirm('Are you sure you want to sign out?')) return;
+      await createClient().auth.signOut();
+      await db.delete();
+      await db.open();
     }
-
-    await createClient().auth.signOut();
-    await db.delete();
-    await db.open();
     window.location.href = '/login';
   };
 

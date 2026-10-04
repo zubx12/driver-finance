@@ -5,24 +5,44 @@ export interface LocalPayer {
   name: string;
   type: 'Organization' | 'Individual';
   createdAt: number;
+  /** 'server' = id is a row in the payers table; otherwise added on this phone. */
+  source?: 'server' | 'local';
 }
 
-export interface LocalRide {
-  id: string;
+/**
+ * Sync state shared by rides and expenses.
+ * - pending: waiting to upload, or retrying after a temporary error
+ * - failed:  the server rejected it (a rule was broken); lastError says why
+ * - synced:  stored on the server under the same id
+ */
+export type SyncStatus = 'pending' | 'synced' | 'failed';
+
+interface SyncFields {
+  syncStatus: SyncStatus;
+  /** Driver who created the entry; it only ever syncs under this driver. */
+  driverId?: string;
+  attempts?: number;
+  nextAttemptAt?: number;
+  lastError?: string;
+}
+
+export interface LocalRide extends SyncFields {
+  id: string; // also the server id once synced (srv- prefix = loaded from server by older app versions)
   date: string; // YYYY-MM-DD
   time?: string; // HH:mm
   amount: number;
   revenueType: 'CASH' | 'VOUCHER';
   paymentStatus: 'Received' | 'Outstanding' | 'Partially Collected' | 'Collected' | 'Disputed' | 'Cancelled';
+  /** Vehicle at the time of the ride. */
+  vehicleId?: string;
   payerId?: string;
   voucherReference?: string;
   notes?: string;
   evidenceImageBase64?: string;
-  syncStatus: 'pending' | 'synced' | 'failed';
   createdAt: number;
 }
 
-export interface LocalExpense {
+export interface LocalExpense extends SyncFields {
   id: string;
   date: string; // YYYY-MM-DD
   time?: string; // HH:mm
@@ -33,7 +53,6 @@ export interface LocalExpense {
   paymentSource: 'Cash' | 'Company Card' | 'Bank Transfer' | 'Other';
   description?: string; // Replaces remarks
   receiptImageBase64?: string; // Now optional conditionally
-  syncStatus: 'pending' | 'synced' | 'failed';
   createdAt: number;
 }
 

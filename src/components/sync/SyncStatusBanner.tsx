@@ -6,18 +6,19 @@
  * Displays a slim top banner showing the current sync state:
  *  - Hidden   when everything is synced and online
  *  - Blue     when a sync is actively running
- *  - Amber    when offline with pending records
- *  - Red      when a sync error occurred (with retry button)
+ *  - Red      when the server rejected entries (stays until the driver acts)
+ *  - Amber    when offline with pending records, or retrying after an error
  *  - Green    flash when sync just completed successfully (auto-hides after 3s)
  */
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { useSyncStatus } from '@/lib/sync/use-sync-status';
 import { runSync } from '@/lib/sync/sync-engine';
 import { WifiOff, RefreshCw, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
 
 export function SyncStatusBanner() {
-  const { pendingCount, isSyncing, lastSyncedAt, lastError } = useSyncStatus();
+  const { pendingCount, failedCount, isSyncing, lastSyncedAt, lastError } = useSyncStatus();
   const [isOnline, setIsOnline] = useState(true);
   const [showSuccess, setShowSuccess] = useState(false);
   const [prevSyncedAt, setPrevSyncedAt] = useState<Date | null>(null);
@@ -35,13 +36,13 @@ export function SyncStatusBanner() {
   useEffect(() => {
     if (lastSyncedAt && lastSyncedAt !== prevSyncedAt) {
       setPrevSyncedAt(lastSyncedAt);
-      if (pendingCount === 0 && !lastError) {
+      if (pendingCount === 0 && failedCount === 0 && !lastError) {
         setShowSuccess(true);
         const t = setTimeout(() => setShowSuccess(false), 3000);
         return () => clearTimeout(t);
       }
     }
-  }, [lastSyncedAt, pendingCount, lastError, prevSyncedAt]);
+  }, [lastSyncedAt, pendingCount, failedCount, lastError, prevSyncedAt]);
 
   // ── Syncing in progress ────────────────────────────────────────────────────
   if (isSyncing) {
@@ -53,17 +54,30 @@ export function SyncStatusBanner() {
     );
   }
 
-  // ── Error state ────────────────────────────────────────────────────────────
-  if (lastError) {
+  // ── Entries the server rejected: the driver has to act ─────────────────────
+  if (failedCount > 0) {
     return (
       <div className="fixed top-0 left-0 right-0 z-50 flex items-center justify-center gap-2 bg-rose-600 text-white text-xs font-semibold py-1.5">
         <AlertCircle className="h-3 w-3 shrink-0" />
+        <span>{failedCount} entr{failedCount > 1 ? 'ies were' : 'y was'} not accepted</span>
+        <Link href="/driver/history" className="ml-2 underline underline-offset-2 hover:no-underline">
+          See why
+        </Link>
+      </div>
+    );
+  }
+
+  // ── Temporary upload problem: retries automatically ───────────────────────
+  if (lastError) {
+    return (
+      <div className="fixed top-0 left-0 right-0 z-50 flex items-center justify-center gap-2 bg-amber-500 text-white text-xs font-semibold py-1.5">
+        <AlertCircle className="h-3 w-3 shrink-0" />
         <span>{lastError}</span>
         <button
-          onClick={() => runSync()}
+          onClick={() => runSync(true)}
           className="ml-2 underline underline-offset-2 hover:no-underline"
         >
-          Retry
+          Retry now
         </button>
       </div>
     );

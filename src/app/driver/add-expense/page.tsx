@@ -16,7 +16,11 @@ const GENERAL_CATEGORIES = ['Other'];
 
 export default function AddExpensePage() {
   const router = useRouter();
-  const { vehicleId: driverVehicleId } = useDriver();
+  const { driverId, vehicleId: driverVehicleId } = useDriver();
+
+  // The server accepts entries dated today or up to 7 days back (Riyadh time).
+  const todayRiyadh = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Riyadh' });
+  const earliestDate = new Date(new Date(`${todayRiyadh}T00:00:00Z`).getTime() - 7 * 86400000).toISOString().slice(0, 10);
   
   const [step, setStep] = useState<1 | 2>(1); // 1: Form, 2: Review
 
@@ -40,6 +44,7 @@ export default function AddExpensePage() {
   
   const isValid = () => {
     if (amountNum <= 0) return false;
+    if (date < earliestDate || date > todayRiyadh) return false;
     if (!category) return false;
     if (!paymentSource) return false;
     if (isDescriptionRequired && !description.trim()) return false;
@@ -87,6 +92,7 @@ export default function AddExpensePage() {
       paymentSource,
       description: description.trim() || undefined,
       receiptImageBase64: imagePreview || undefined,
+      driverId,
       syncStatus: 'pending' as const,
       createdAt: Date.now(),
     };
@@ -127,7 +133,7 @@ export default function AddExpensePage() {
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-2">
                   <Label className="text-zinc-500 text-xs">Date</Label>
-                  <Input type="date" value={date} onChange={e => setDate(e.target.value)} className="rounded-xl border-zinc-300 dark:border-zinc-700" />
+                  <Input type="date" value={date} min={earliestDate} max={todayRiyadh} onChange={e => setDate(e.target.value)} className="rounded-xl border-zinc-300 dark:border-zinc-700" />
                 </div>
                 <div className="space-y-2">
                   <Label className="text-zinc-500 text-xs">Time</Label>

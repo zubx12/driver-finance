@@ -24,6 +24,10 @@ jobs:
       - name: Type check
         run: npx tsc --noEmit
 
+      # Offline sync engine (fake IndexedDB + fake Supabase).
+      - name: Unit tests
+        run: npm test
+
       # Applies every migration to an in-memory Postgres and runs the pgTAP
       # tests (security policies, payout engine). See scripts/test-db-local.mjs.
       - name: Database tests

@@ -2,7 +2,7 @@
 -- Run with: supabase test db
 BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
-SELECT plan(14);
+SELECT plan(16);
 
 -- ─── Fixtures ────────────────────────────────────────────────────────────────
 INSERT INTO auth.users (id, email) VALUES
@@ -76,6 +76,19 @@ SELECT lives_ok($$ INSERT INTO public.expenses (driver_id, vehicle_id, amount, c
   VALUES ('bbbbbbbb-0000-0000-0000-000000000001', 'aaaaaaaa-0000-0000-0000-000000000001', 20, 'Fuel', 'Cash',
           'bbbbbbbb-0000-0000-0000-000000000001/2026-01-01/ok.jpg', public.app_today()) $$,
   'expense with an uploaded receipt is accepted');
+
+-- Offline sync re-sends an entry with the same id when a response is lost;
+-- the app's upsert (ignoreDuplicates) becomes INSERT ... ON CONFLICT DO NOTHING.
+SELECT lives_ok($$
+  INSERT INTO public.rides (id, driver_id, vehicle_id, amount, payment_method, ride_date)
+  VALUES ('cccccccc-0000-0000-0000-000000000002', 'bbbbbbbb-0000-0000-0000-000000000001', 'aaaaaaaa-0000-0000-0000-000000000001', 40, 'Cash', public.app_today())
+  ON CONFLICT (id) DO NOTHING;
+  INSERT INTO public.rides (id, driver_id, vehicle_id, amount, payment_method, ride_date)
+  VALUES ('cccccccc-0000-0000-0000-000000000002', 'bbbbbbbb-0000-0000-0000-000000000001', 'aaaaaaaa-0000-0000-0000-000000000001', 40, 'Cash', public.app_today())
+  ON CONFLICT (id) DO NOTHING $$,
+  'sync: re-sending the same entry is accepted by a driver');
+SELECT is((SELECT count(*) FROM public.rides WHERE id = 'cccccccc-0000-0000-0000-000000000002'), 1::bigint,
+  'sync: re-sending the same entry does not duplicate it');
 
 -- ─── Admin ───────────────────────────────────────────────────────────────────
 SET LOCAL request.jwt.claims = '{"sub":"00000000-0000-0000-0000-00000000000a","role":"authenticated","app_metadata":{"role":"admin"}}';
