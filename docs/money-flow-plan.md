@@ -1,108 +1,134 @@
 # Money Flow Plan: who earns what, and where the money is
 
-Status: **Draft for owner review** (2026-10-04). Builds on
-[payout-rules.md](payout-rules.md) (what each person earns, already built).
+Status: **Decisions recorded, ready to build** (2026-10-04). Builds on
+[payout-rules.md](payout-rules.md) (what each person earns, already built and
+tested).
 
-## 1. The owner's rule (confirmed 2026-10-04)
+## 1. The owner's rules
 
-> Revenue for the month, minus the expenses paid by the driver, minus the
-> expenses added by the office; the remaining balance is shared between the
-> partners by their percentage. Most expenses are paid by the driver from the
-> cash in hand.
-
-This is what the payout engine does today. Example (now an automated test,
-"Example G"):
+**Payout split (built).** Revenue for the month, minus expenses paid by the
+driver, minus office expenses, minus the driver's pay; the remaining balance is
+shared between the partners by percentage. Example G (automated test):
 
 | Line | SAR |
 |---|---|
 | Revenue for the month | 9,000 |
 | − Expenses paid by the driver | −2,000 |
-| − Expenses added by the office | −1,000 |
+| − Office expenses | −1,000 |
+| − Driver pay (none in this example) | 0 |
 | **= Balance to share** | **6,000** |
 | Partner A, 60% | 3,600 |
 | Partner B, 40% | 2,400 |
 
-If the driver is paid by commission or salary, that pay is taken out before
-the partners' share, the same way as an expense (payout-rules.md, D2/D8).
+**Decisions (owner, 2026-10-04)**
 
-## 2. What is missing: where the money physically is
-
-The split answers "how much does each partner earn". It does not answer
-"where is the cash", which matters because the driver pays expenses out of
-the cash they collect. Using the same month, with revenue taken as 7,000 cash
-and 2,000 vouchers:
-
-| Driver's cash in hand | SAR |
+| # | Decision |
 |---|---|
-| Cash collected from passengers | +7,000 |
-| Vouchers the driver collected (say 1,500 of 2,000) | +1,500 |
-| − Expenses the driver paid in cash | −2,000 |
-| − Cash handed over to the office during the month | −5,000 |
-| **= Cash the driver still holds** | **1,500** |
+| M1 | Driver pay (commission or salary) comes out **before** the partners' share. |
+| M2 | The driver is **cleared every month**. Vouchers not yet collected at month end are **handed to the partner** as part of their payout; the office keeps the record of every voucher. The office can **print a full monthly report for every vehicle**: revenue (cash and vouchers), all expenses, payouts. |
+| M3 | Partners and drivers can change vehicle in the middle of a month. When the office makes the change, **every record keeps its date**: who drove or owned which vehicle, from when to when. |
+| M4 | The driver keeps their pay from the cash in hand. If the cash is **more** than their pay, the office receives the rest. If it is **less**, the office pays the driver the difference, either now or later (e.g. next month). |
 
-| Office side | SAR |
-|---|---|
-| Cash received from the driver | 5,000 |
-| − Office expenses paid | −1,000 |
-| − Partner payouts | −6,000 |
-| Still to come in: driver's cash 1,500 + vouchers not yet collected 500 | +2,000 |
-| **= Balance once everything is collected** | **0** |
+Ownership changes inside a month keep the split by days owned (payout-rules
+D1), which follows from M3: each record keeps its dates and the month is split
+by them.
 
-Today the server cannot produce either table: **cash handovers are stored only
-on drivers' phones**, and voucher collection is recorded but not linked to who
-holds the money. That is why the partner "Driver Cash" page says
-"not available yet".
+## 2. The driver's monthly settlement (M2 + M4)
 
-## 3. Decisions needed from the owner
+Every month each driver gets one settlement: what they collected, what they
+spent, what they earned and what they handed over, and the balance between
+them and the office.
 
-| # | Question | Options | Recommendation |
-|---|---|---|---|
-| M1 | Driver pay (commission/salary) comes out before the partners' share? | Yes / No (paid by the company separately) | **Yes** (built today) |
-| M2 | Vouchers not collected by month end | (a) count in the month they were earned, pay partners now; (b) count only when collected | **(a)** with the uncollected amount shown on the statement; switching to (b) changes the engine and every past month |
-| M3 | Ownership changes in the middle of a month (D1) | By days owned / by income on each day | **By days owned** (built today) |
-| M4 | How is the driver's own pay handed over? | Office pays the driver / driver keeps it from the cash in hand | Decides whether driver pay appears in the cash table |
+```
+  Opening balance           (carried from last month; + driver owes office, − office owes driver)
++ Cash collected            (cash rides)
++ Vouchers the driver collected in cash
+− Expenses the driver paid from the cash
+− Driver pay for the month  (commission / salary + bonus, from the finalized payout)
+− Cash handed over          (confirmed by the office)
+= Closing balance
+    > 0  the driver hands this to the office
+    < 0  the office owes the driver this amount
+```
 
-## 4. Plan (proposed Phase 7: money flow)
+At month end the office closes it with one of:
+- **Settled now**: the driver hands over / the office pays the driver (with reference);
+- **Carried forward**: the balance becomes next month's opening balance.
 
-Each step is a database migration with tests, then screens, then a commit.
+Worked examples:
 
-**7A. Cash handovers on the server**
-- `cash_handovers` table: driver, vehicle, amount, date, method (cash / bank
-  transfer), reference, `status` (`submitted` by the driver → `confirmed` by
-  the office, or `disputed`), audited.
-- Driver app: the existing handover form syncs through the same offline sync
-  engine (no duplicates, retries, never lost at sign-out).
-- Office: a "Handovers to confirm" screen. Only confirmed handovers reduce
-  the driver's cash in hand.
+| | Case 1: cash more than pay | Case 2: cash less than pay |
+|---|---|---|
+| Driver pay | Commission 1,800 | Salary 4,000 |
+| Opening balance | 0 | 0 |
+| + Cash collected | 7,000 | 3,000 |
+| − Expenses paid from cash | −2,000 | −500 |
+| − Driver pay kept | −1,800 | −4,000 |
+| − Handed over during the month | −3,000 | 0 |
+| **= Closing balance** | **+200**: driver hands 200 to the office | **−1,500**: office owes the driver 1,500, pays now or next month |
 
-**7B. Driver cash position**
-- Database function: cash collected + vouchers the driver collected − cash
-  expenses − confirmed handovers (− pay kept by the driver, if M4 says so),
-  per driver, for any period, with an opening balance carried from earlier
-  months.
-- Office: "Cash in hand" screen, all drivers, sorted by who holds the most.
-- Driver app: the same figure on the Cash screen, so both sides see one number.
-- Partner "Driver Cash" page: real figures for their vehicles.
+A driver who changes vehicle mid-month still has **one** settlement: their
+entries from both vehicles are included, each with its own vehicle and date.
 
-**7C. Who paid each expense**
-- Make it explicit on every expense: *paid by driver cash*, *paid by company
-  card/transfer*, *office expense*. Only driver-cash expenses reduce the cash
-  in hand; all of them still reduce the balance to share (rule in §1).
+## 3. Vouchers handed to partners (M2)
 
-**7D. Monthly statement**
-- One page per vehicle per month (screen + PDF/CSV): §1 table, driver pay, each
-  partner's share, and the §2 cash position, including vouchers still to
-  collect. The office can send it to partners with the payout.
+Vouchers still uncollected at month end belong to the vehicle's month and are
+part of the partners' balance (they were counted as revenue). The partner
+**takes** them: the office pays the partner in cash only the part already
+received, and the partner collects the vouchers.
 
-**7E. Month-end checks before finalizing**
-- Finalizing a month warns when: a driver still holds cash above a limit,
-  handovers are unconfirmed, or vouchers are uncollected (M2).
+Example: a partner's share is 3,600 and 500 of that vehicle's vouchers are
+uncollected. The office pays **3,100 in cash** and hands over **500 in
+vouchers** (listed one by one: date, payer, reference, amount). When the
+partner collects one, they mark it collected (this already exists) and the
+record shows who collected it and when.
 
-Then the remaining items from the original Phase 7 (usability) and Phase 8
-(lint backlog, pilot).
+*Open point:* with two or more partners on one car, see the question at the
+end.
 
-## 5. Before any of this goes live
+## 4. Assignment history (M3)
+
+- Partner ownership and driver pay terms already keep from/to dates.
+- **Missing:** which driver drove which vehicle when. Today only the current
+  vehicle is stored. A `driver_vehicle_assignments` table (driver, vehicle,
+  from, to) will be written whenever the office assigns or moves a driver, and
+  shown on the vehicle and driver pages ("Ali: 1-14 Oct on Camry, 15 Oct onward
+  on Staria").
+- Every ride and expense already stores its own vehicle and date, so totals stay
+  correct after a move.
+
+## 5. Monthly vehicle report (M2)
+
+A print-ready page per vehicle per month (Print / Save as PDF, plus CSV):
+
+1. Owners in the month, with dates and percentages; drivers in the month, with dates.
+2. Revenue: cash and vouchers, by day.
+3. Vouchers: each one with date, payer, reference, amount, status, who collected it.
+4. Expenses: each one with who paid (driver cash / company / office), category, receipt link.
+5. Office expenses, charged expenses and corrections (adjustments).
+6. Driver pay and how it was calculated.
+7. Balance to share and each partner's share: paid in cash + vouchers handed over.
+
+A matching **driver statement** shows the settlement in §2.
+
+## 6. Build plan (Phase 7: money flow)
+
+Each step: database migration + tests, then screens, then build + commit.
+
+| Step | What | Depends on |
+|---|---|---|
+| **7A** | Assignment history table, written by assign/unassign, backfilled from today's assignments; history shown on vehicle and driver pages | – |
+| **7B** | Cash handovers on the server: the driver submits (offline-safe), the office confirms or disputes; audited | – |
+| **7C** | "Who paid" on every expense (driver cash / company card or transfer / office) | – |
+| **7D** | Driver monthly settlement: calculation (§2), office screen to settle or carry forward, carried balances, driver can see their own | 7A, 7B, 7C, finalized payouts |
+| **7E** | Vouchers handed to partners: cash part vs voucher part on each partner settlement, voucher list attached | answer to the open point |
+| **7F** | Monthly vehicle report and driver statement (print/PDF/CSV) | 7A-7E |
+| **7G** | Month-end close: an order and a checklist. Finalize vehicle payouts → settle drivers → pay partners; warnings for unconfirmed handovers, drivers holding cash, unreviewed expenses | 7D, 7E |
+
+Then the remaining usability work and Phase 8 (lint backlog, pilot).
+
+## 7. Before any of this goes live
 
 Staging, the production damage queries and the release steps in
-[deployment-runbook.md](deployment-runbook.md) still come first: the
-payout fixes from Phases 1–5 are not deployed yet.
+[deployment-runbook.md](deployment-runbook.md) still come first: the payout
+fixes from Phases 1-5 are not deployed yet.
