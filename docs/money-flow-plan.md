@@ -83,8 +83,10 @@ vouchers** (listed one by one: date, payer, reference, amount). When the
 partner collects one, they mark it collected (this already exists) and the
 record shows who collected it and when.
 
-*Open point:* with two or more partners on one car, see the question at the
-end.
+**Two or more partners on one car (owner, 2026-10-04: option a):** each
+uncollected voucher stays shared by the partners' percentages for that month.
+When it is collected, the money is split the same way, so no partner is left
+holding a voucher that is never paid.
 
 ## 4. Assignment history (M3)
 
@@ -121,7 +123,7 @@ Each step: database migration + tests, then screens, then build + commit.
 | **7B** | Cash handovers on the server: the driver submits (offline-safe), the office confirms or disputes; audited | – |
 | **7C** | "Who paid" on every expense (driver cash / company card or transfer / office) | – |
 | **7D** | Driver monthly settlement: calculation (§2), office screen to settle or carry forward, carried balances, driver can see their own | 7A, 7B, 7C, finalized payouts |
-| **7E** | Vouchers handed to partners: cash part vs voucher part on each partner settlement, voucher list attached | answer to the open point |
+| **7E** | Vouchers handed to partners: cash part vs voucher part on each partner settlement, voucher list attached; shared vouchers split by percentage when collected | 7D |
 | **7F** | Monthly vehicle report and driver statement (print/PDF/CSV) | 7A-7E |
 | **7G** | Month-end close: an order and a checklist. Finalize vehicle payouts → settle drivers → pay partners; warnings for unconfirmed handovers, drivers holding cash, unreviewed expenses | 7D, 7E |
 

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useParams } from 'next/navigation';
+import { AssignmentHistory } from '@/components/admin/AssignmentHistory';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerFooter, DrawerClose, DrawerTrigger } from '@/components/ui/drawer';
@@ -539,6 +540,8 @@ export default function DriverDetailPage() {
           )}
         </CardContent>
       </Card>
+
+      <AssignmentHistory driverId={id} />
     </div>
   );
 }
