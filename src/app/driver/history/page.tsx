@@ -13,6 +13,7 @@ import { SkeletonCard, EmptyState } from '@/components/ui/skeleton-card';
 import { createClient } from '@/lib/supabase/client';
 import { retryEntry, discardEntry } from '@/lib/data/syncQueue';
 import { runSync } from '@/lib/sync/sync-engine';
+import { useMyExpenses, useMyRides } from '@/lib/db/use-my-entries';
 
 /** Local ids equal server ids; older app versions prefixed loaded entries with srv-. */
 const serverId = (id: string) => id.replace(/^srv-/, '');
@@ -144,8 +145,8 @@ export default function DriverHistoryPage() {
   const todayStr = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Riyadh' });
 
   
-  const allRides = useLiveQuery(() => db.rides.orderBy('createdAt').reverse().toArray(), []);
-  const allExpenses = useLiveQuery(() => db.expenses.orderBy('createdAt').reverse().toArray(), []);
+  const allRides = useMyRides();
+  const allExpenses = useMyExpenses();
   const payers = useLiveQuery(() => db.payers.toArray(), []);
 
   const filterByDate = (date: string) => {

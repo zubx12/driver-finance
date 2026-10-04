@@ -6,8 +6,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, ArrowDownToLine, ArrowUpFromLine, PlusCircle, CheckCircle } from 'lucide-react';
 import Link from 'next/link';
-import { 
-  calculateCashInHand, 
+import { useMyExpenses, useMyRides } from '@/lib/db/use-my-entries';
+import {
+  calculateCashInHand,
   generateLedger, 
   INITIAL_OPENING_CASH, 
   calculateCashRevenue,
@@ -16,8 +17,8 @@ import {
 } from '@/lib/finance-service';
 
 export default function DriverCashPage() {
-  const allRides = useLiveQuery(() => db.rides.toArray(), [], []);
-  const allExpenses = useLiveQuery(() => db.expenses.toArray(), [], []);
+  const allRides = useMyRides() ?? [];
+  const allExpenses = useMyExpenses() ?? [];
   const allHandovers = useLiveQuery(() => db.cashHandovers.toArray(), [], []);
 
   const cashInHand = calculateCashInHand(allRides, allExpenses, allHandovers);

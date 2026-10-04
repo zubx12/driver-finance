@@ -1,15 +1,14 @@
 ﻿'use client';
 
-import { useLiveQuery } from 'dexie-react-hooks';
-import { db } from '@/lib/db/dexie';
 import { useDriver } from '@/contexts/DriverContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area } from 'recharts';
+import { useMyExpenses, useMyRides } from '@/lib/db/use-my-entries';
 
 export default function DriverSummaryPage() {
   const { commissionRate, payType, loading } = useDriver();
-  const allRides = useLiveQuery(() => db.rides.toArray(), []) || [];
-  const allExpenses = useLiveQuery(() => db.expenses.toArray(), []) || [];
+  const allRides = useMyRides() ?? [];
+  const allExpenses = useMyExpenses() ?? [];
 
   const totalRevenue = allRides.reduce((sum, r) => sum + r.amount, 0);
   const totalExpenses = allExpenses.reduce((sum, e) => sum + e.amount, 0);

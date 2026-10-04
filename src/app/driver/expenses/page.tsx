@@ -1,15 +1,14 @@
 'use client';
 
 import { useState } from 'react';
-import { useLiveQuery } from 'dexie-react-hooks';
-import { db } from '@/lib/db/dexie';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, PlusCircle, Receipt, Filter, ChevronRight, X } from 'lucide-react';
 import Link from 'next/link';
+import { useMyExpenses } from '@/lib/db/use-my-entries';
 
 export default function ExpensesHubPage() {
-  const allExpenses = useLiveQuery(() => db.expenses.orderBy('createdAt').reverse().toArray(), [], []);
+  const allExpenses = useMyExpenses() ?? [];
   
   const [selectedExpenseId, setSelectedExpenseId] = useState<string | null>(null);
 

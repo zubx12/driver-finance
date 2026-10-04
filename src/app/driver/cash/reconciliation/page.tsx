@@ -10,12 +10,13 @@ import { Label } from '@/components/ui/label';
 import { ArrowLeft, CheckCircle2, AlertTriangle, Scale } from 'lucide-react';
 import Link from 'next/link';
 import { calculateCashInHand } from '@/lib/finance-service';
+import { useMyExpenses, useMyRides } from '@/lib/db/use-my-entries';
 
 export default function CashReconciliationPage() {
   const router = useRouter();
   
-  const allRides = useLiveQuery(() => db.rides.toArray(), [], []);
-  const allExpenses = useLiveQuery(() => db.expenses.toArray(), [], []);
+  const allRides = useMyRides() ?? [];
+  const allExpenses = useMyExpenses() ?? [];
   const allHandovers = useLiveQuery(() => db.cashHandovers.toArray(), [], []);
 
   const [actualCash, setActualCash] = useState('');
