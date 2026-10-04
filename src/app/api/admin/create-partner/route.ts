@@ -1,3 +1,4 @@
+import { riyadhToday } from '@/lib/dates';
 import { createClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
@@ -127,7 +128,7 @@ export async function POST(request: NextRequest) {
       username: cleanUsername,
       linked_auth_id: authData.user.id,
       status,
-      joined_date: new Date().toISOString().split('T')[0],
+      joined_date: riyadhToday(),
     })
     .select('id')
     .single();

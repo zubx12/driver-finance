@@ -1,4 +1,5 @@
 'use client';
+import { addDays, riyadhToday } from '@/lib/dates';
 
 import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
@@ -19,13 +20,13 @@ export default function AddExpensePage() {
   const { driverId, vehicleId: driverVehicleId } = useDriver();
 
   // The server accepts entries dated today or up to 7 days back (Riyadh time).
-  const todayRiyadh = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Riyadh' });
-  const earliestDate = new Date(new Date(`${todayRiyadh}T00:00:00Z`).getTime() - 7 * 86400000).toISOString().slice(0, 10);
+  const todayRiyadh = riyadhToday();
+  const earliestDate = addDays(todayRiyadh, -7);
   
   const [step, setStep] = useState<1 | 2>(1); // 1: Form, 2: Review
 
   // Form State
-  const [date, setDate] = useState(new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Riyadh' }));
+  const [date, setDate] = useState(todayRiyadh);
   const [time, setTime] = useState(new Date().toTimeString().substring(0, 5));
   const [amount, setAmount] = useState('');
   const [category, setCategory] = useState('Fuel');

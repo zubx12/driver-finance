@@ -1,4 +1,5 @@
 'use client';
+import { riyadhToday } from '@/lib/dates';
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
@@ -37,7 +38,7 @@ export default function CashReconciliationPage() {
     
     const reconciliation = {
       id: crypto.randomUUID(),
-      date: new Date().toISOString().split('T')[0],
+      date: riyadhToday(),
       expectedCash,
       actualCash: Number(actualCash),
       difference,

@@ -1,3 +1,4 @@
+import { riyadhToday } from '@/lib/dates';
 import { createClient } from '@/lib/supabase/client';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -50,7 +51,7 @@ export async function getDriverRides(
 
 /** Get rides for a specific driver for today. Used for "My Day" view. */
 export async function getDriverTodayRides(driverId: string): Promise<DbRide[]> {
-  const today = new Date().toISOString().split('T')[0];
+  const today = riyadhToday();
   return getDriverRides(driverId, today, today);
 }
 

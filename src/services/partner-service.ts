@@ -1,3 +1,4 @@
+import { parseMonthLabel } from '@/lib/dates';
 import { 
   Partner, 
   PartnerVehicle, 
@@ -118,12 +119,10 @@ export const partnerService = {
     let start = '2000-01-01';
     let end = '2100-12-31';
     
-    if (period && period !== 'All') {
-      const d = new Date(period + ' 1');
-      if (!isNaN(d.getTime())) {
-        start = new Date(d.getFullYear(), d.getMonth(), 1).toISOString().split('T')[0];
-        end = new Date(d.getFullYear(), d.getMonth() + 1, 0).toISOString().split('T')[0];
-      }
+    const range = period && period !== 'All' ? parseMonthLabel(period) : null;
+    if (range) {
+      start = range.start;
+      end = range.end;
     }
     
     const expenses = await getVehicleExpenses(vehicleId, start, end);
@@ -157,13 +156,7 @@ export const partnerService = {
   
   // Helper to parse "Month YYYY" into start and end dates
   _parsePeriod(period: string): { start: string; end: string } {
-    if (period === 'All') return { start: '2000-01-01', end: '2100-12-31' };
-    const d = new Date(period + ' 1');
-    if (isNaN(d.getTime())) return { start: '2000-01-01', end: '2100-12-31' };
-    
-    const start = new Date(d.getFullYear(), d.getMonth(), 1).toISOString().split('T')[0];
-    const end = new Date(d.getFullYear(), d.getMonth() + 1, 0).toISOString().split('T')[0];
-    return { start, end };
+    return parseMonthLabel(period) ?? { start: '2000-01-01', end: '2100-12-31' };
   },
 
   async getCalculatedFinancials(period: string, vehicleId?: string, driverId?: string): Promise<CalculatedFinancials> {

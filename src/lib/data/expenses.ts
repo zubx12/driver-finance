@@ -1,3 +1,4 @@
+import { riyadhToday } from '@/lib/dates';
 import { createClient } from '@/lib/supabase/client';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -112,7 +113,7 @@ export async function getDriverExpenses(
 
 /** Get today's expenses for the "My Day" view. */
 export async function getDriverTodayExpenses(driverId: string): Promise<DbExpense[]> {
-  const today = new Date().toISOString().split('T')[0];
+  const today = riyadhToday();
   return getDriverExpenses(driverId, today, today);
 }
 

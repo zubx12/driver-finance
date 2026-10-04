@@ -1,4 +1,5 @@
 'use client';
+import { riyadhToday } from '@/lib/dates';
 
 import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -13,7 +14,7 @@ export default function ExpensesHubPage() {
   const [selectedExpenseId, setSelectedExpenseId] = useState<string | null>(null);
 
   // Quick Filters
-  const todayStr = new Date().toISOString().split('T')[0];
+  const todayStr = riyadhToday();
   const todayExpenses = allExpenses.filter(e => e.date === todayStr);
   
   const todayObj = new Date();

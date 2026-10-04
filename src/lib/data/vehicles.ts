@@ -1,3 +1,4 @@
+import { riyadhToday } from '@/lib/dates';
 import { createClient } from '@/lib/supabase/client';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -36,7 +37,7 @@ export async function getPartnerVehicles(partnerId: string): Promise<DbVehicle[]
       vehicle_partners!inner(partner_id, effective_from, effective_to)
     `)
     .eq('vehicle_partners.partner_id', partnerId)
-    .or('effective_to.is.null,effective_to.gt.' + new Date().toISOString().split('T')[0], {
+    .or('effective_to.is.null,effective_to.gt.' + riyadhToday(), {
       foreignTable: 'vehicle_partners',
     });
 
@@ -62,7 +63,7 @@ export async function getActiveVehicles(): Promise<DbVehicle[]> {
 /** Get all active ownership splits for a vehicle. */
 export async function getVehiclePartners(vehicleId: string): Promise<DbVehiclePartner[]> {
   const supabase = createClient();
-  const today = new Date().toISOString().split('T')[0];
+  const today = riyadhToday();
   const { data, error } = await supabase
     .from('vehicle_partners')
     .select('*')

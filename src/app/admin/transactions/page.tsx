@@ -1,4 +1,5 @@
 'use client';
+import { monthOf, riyadhToday } from '@/lib/dates';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
@@ -35,7 +36,7 @@ export default function AdminTransactionsPage() {
   const loadTransactions = useCallback(async () => {
     setLoading(true);
     const supabase = createClient();
-    const monthStart = new Date().toISOString().slice(0, 7) + '-01';
+    const monthStart = monthOf(riyadhToday()).start;
     const offset = (page - 1) * PAGE_SIZE;
 
     const results: Transaction[] = [];

@@ -1,3 +1,4 @@
+import { monthOf, riyadhToday } from '@/lib/dates';
 /**
  * use-realtime-partner.ts
  *
@@ -60,10 +61,8 @@ export function useRealtimePartner(vehicleIds: string[]): PartnerRealtimeState &
 
     // ── Initial fetch: current period totals from daily_summary ──────────────
     async function fetchInitialFinancials() {
-      const monthStart = new Date();
-      monthStart.setDate(1);
-      const startStr = monthStart.toISOString().split('T')[0];
-      const endStr = new Date().toISOString().split('T')[0];
+      const endStr = riyadhToday();
+      const startStr = monthOf(endStr).start;
 
       const { data } = await supabase
         .from('daily_summary')
@@ -112,10 +111,8 @@ export function useRealtimePartner(vehicleIds: string[]): PartnerRealtimeState &
         if (!row || !vehicleIds.includes(row.vehicle_id)) return;
 
         // Re-fetch totals for this vehicle (simpler than in-memory merging)
-        const monthStart = new Date();
-        monthStart.setDate(1);
-        const startStr = monthStart.toISOString().split('T')[0];
-        const endStr = new Date().toISOString().split('T')[0];
+        const endStr = riyadhToday();
+        const startStr = monthOf(endStr).start;
 
         const { data } = await supabase
           .from('daily_summary')

@@ -1,4 +1,5 @@
 'use client';
+import { riyadhToday } from '@/lib/dates';
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -27,7 +28,7 @@ export default function CashHandoverPage() {
     
     const handover = {
       id: crypto.randomUUID(),
-      date: new Date().toISOString().split('T')[0],
+      date: riyadhToday(),
       amount: Number(amount),
       handedTo,
       reference,
