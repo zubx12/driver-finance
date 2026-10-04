@@ -34,7 +34,7 @@ export async function hydrateFromServer(driverId: string): Promise<{ rides: numb
       .lte('ride_date', today),
     supabase
       .from('expenses')
-      .select('id, expense_date, amount, category, description, allocation, vehicle_id, payment_method, created_at')
+      .select('id, expense_date, amount, category, description, allocation, vehicle_id, payment_method, paid_by, created_at')
       .eq('driver_id', driverId)
       .gte('expense_date', monthStart)
       .lte('expense_date', today),
@@ -63,7 +63,9 @@ export async function hydrateFromServer(driverId: string): Promise<{ rides: numb
     category: e.category,
     allocation: e.allocation === 'Driver' ? 'Driver' : e.allocation === 'Company' ? 'Other / Company' : 'Current Vehicle',
     vehicleId: e.vehicle_id ?? undefined,
-    paymentSource: e.payment_method === 'Cash' ? 'Cash' : e.payment_method === 'Transfer' ? 'Bank Transfer' : 'Company Card',
+    paymentSource: e.payment_method === 'Cash' ? 'Cash'
+      : e.paid_by === 'driver' ? 'Own Money'
+      : e.payment_method === 'Transfer' ? 'Bank Transfer' : 'Company Card',
     description: e.description ?? undefined,
     // Receipt is stored on the server — no need to store base64 locally
     driverId,

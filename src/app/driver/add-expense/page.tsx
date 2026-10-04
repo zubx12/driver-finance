@@ -32,7 +32,7 @@ export default function AddExpensePage() {
   const [category, setCategory] = useState('Fuel');
   const [allocation, setAllocation] = useState<'Current Vehicle' | 'Driver' | 'Other / Company'>('Current Vehicle');
   const [description, setDescription] = useState('');
-  const [paymentSource, setPaymentSource] = useState<'Cash' | 'Company Card' | 'Bank Transfer' | 'Other'>('Cash');
+  const [paymentSource, setPaymentSource] = useState<'Cash' | 'Own Money' | 'Company Card' | 'Bank Transfer'>('Cash');
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -223,16 +223,16 @@ export default function AddExpensePage() {
             {/* PAYMENT SOURCE */}
             <section className="bg-white dark:bg-zinc-900 rounded-2xl p-5 border border-zinc-200 dark:border-zinc-800 shadow-sm space-y-4">
               <div className="space-y-2">
-                <Label className="text-zinc-500 text-xs">Payment Source *</Label>
+                <Label className="text-zinc-500 text-xs">Who Paid? *</Label>
                 <select
                   value={paymentSource}
-                  onChange={(e) => setPaymentSource(e.target.value as any)}
+                  onChange={(e) => setPaymentSource(e.target.value as typeof paymentSource)}
                   className="flex h-12 w-full rounded-xl border border-zinc-300 bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-indigo-500 dark:border-zinc-700 dark:bg-zinc-950"
                 >
-                  <option value="Cash">Cash</option>
-                  <option value="Company Card">Company Card</option>
-                  <option value="Bank Transfer">Bank Transfer</option>
-                  <option value="Other">Other</option>
+                  <option value="Cash">Cash in hand (from rides)</option>
+                  <option value="Own Money">My own money / card (office repays)</option>
+                  <option value="Company Card">Company card</option>
+                  <option value="Bank Transfer">Company bank transfer</option>
                 </select>
               </div>
               
@@ -243,11 +243,18 @@ export default function AddExpensePage() {
                     This will reduce your Expected Cash in Hand balance by SAR {amountNum.toFixed(2)}.
                   </p>
                 </div>
+              ) : paymentSource === 'Own Money' ? (
+                <div className="p-3 bg-emerald-50 dark:bg-emerald-950/30 rounded-xl border border-emerald-100 dark:border-emerald-900 flex items-center gap-3">
+                  <Wallet className="text-emerald-600 w-5 h-5 shrink-0" />
+                  <p className="text-xs text-emerald-700 dark:text-emerald-300 font-medium">
+                    The office owes you SAR {amountNum.toFixed(2)}. It is repaid in your monthly settlement.
+                  </p>
+                </div>
               ) : (
                 <div className="p-3 bg-zinc-100 dark:bg-zinc-800/50 rounded-xl border border-zinc-200 dark:border-zinc-800 flex items-center gap-3">
                   <CreditCard className="text-zinc-500 w-5 h-5 shrink-0" />
                   <p className="text-xs text-zinc-600 dark:text-zinc-400 font-medium">
-                    Non-cash expense. Your Cash in Hand balance will remain unchanged.
+                    Paid by the company. Your Cash in Hand balance will remain unchanged.
                   </p>
                 </div>
               )}
