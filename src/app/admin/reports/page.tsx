@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { AlertCircle, Download, Printer } from 'lucide-react';
@@ -22,16 +23,31 @@ import { DriverStatementView } from '@/components/reports/DriverStatementView';
 type Kind = 'vehicle' | 'driver';
 interface Option { id: string; label: string; }
 
+// Links such as /admin/reports?kind=driver&driver=<id>&month=2026-08 open
+// straight on that report (used by the driver page's Statement button).
 export default function AdminReportsPage() {
-  const [kind, setKind] = useState<Kind>('vehicle');
-  const [month, setMonth] = useState(previousMonth());
+  return (
+    <Suspense fallback={<div className="text-center text-zinc-400 py-16 text-sm">Loading…</div>}>
+      <ReportsPage />
+    </Suspense>
+  );
+}
+
+function ReportsPage() {
+  const params = useSearchParams();
+  const linkKind: Kind = params.get('kind') === 'driver' ? 'driver' : 'vehicle';
+  const linkTarget = params.get(linkKind) ?? '';
+  const linkMonth = params.get('month') ?? '';
+
+  const [kind, setKind] = useState<Kind>(linkKind);
+  const [month, setMonth] = useState(/^\d{4}-\d{2}$/.test(linkMonth) ? linkMonth : previousMonth());
   const [vehicles, setVehicles] = useState<Option[]>([]);
   const [drivers, setDrivers] = useState<Option[]>([]);
-  const [vehicleId, setVehicleId] = useState('');
-  const [driverId, setDriverId] = useState('');
+  const [vehicleId, setVehicleId] = useState(linkKind === 'vehicle' ? linkTarget : '');
+  const [driverId, setDriverId] = useState(linkKind === 'driver' ? linkTarget : '');
   const [report, setReport] = useState<VehicleMonthReport | null>(null);
   const [statement, setStatement] = useState<DriverStatement | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(Boolean(linkTarget));
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
