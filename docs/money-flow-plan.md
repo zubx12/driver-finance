@@ -127,7 +127,11 @@ Each step: database migration + tests, then screens, then build + commit.
 | **7F** | Monthly vehicle report and driver statement (print/PDF/CSV) | 7A-7E |
 | **7G** | Month-end close: an order and a checklist. Finalize vehicle payouts → settle drivers → pay partners; warnings for unconfirmed handovers, drivers holding cash, unreviewed expenses | 7D, 7E |
 
-Status (2026-10-04): 7A, 7B done (PR #1); 7C, 7D done (PR #2); 7E done on branch feat/money-flow-7e.
+Status (2026-10-05): 7A, 7B done (PR #1); 7C, 7D done (PR #2); 7E done (PR #3);
+7F done on branch feat/money-flow-7f: Monthly Reports in the admin menu
+(vehicle report or driver statement per month, Print / Save as PDF, CSV) and
+"My Statement" for drivers, opened from the settlement card on the Cash screen.
+The vehicle report is for the office only; partners keep their own screens.
 
 Rules settled while building 7E:
 - Vouchers are handed over **when the office pays the partner's share**: those
