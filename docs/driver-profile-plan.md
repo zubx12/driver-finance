@@ -148,8 +148,31 @@ L0-L4 replace "Mark as left" in P2 and are tested like the money-flow steps
    office corrects it if needed (recommended).
 2. **When a driver leaves**: decided (§5): Leaving → clearance approved by the
    office → Left; records kept forever; rejoining possible.
-3. **Documents**: also keep Iqama and driving licence **expiry dates** with a
-   warning 30 days before? (Only dates, not ID numbers, unless the owner wants
-   numbers stored.) Open.
+3. **Documents**: decided (2026-10-05): keep Iqama and driving licence
+   **expiry dates** (dates only, no ID numbers), warn 30 days before, and show
+   the warning to the **driver** as well as the office. See §7.
 4. **Order**: decided: P1 + dashboard D1 first (done on branch
    feat/admin-polish-p1-d1), then L0 (protect records), then the rest.
+
+## 7. Document expiry (Iqama, driving licence)
+
+Owner decision (2026-10-05): keep the expiry dates, warn 30 days ahead, and
+show the warning to the driver too.
+
+- **Stored**: one row per driver and document type (Iqama, driving licence;
+  more types can be added later) with the expiry date. Dates only: no ID
+  numbers or scans. The office enters and updates them on the driver's page;
+  every change is in the audit log.
+- **Office**: on the driver's page header, a badge per document (valid /
+  expires in N days / expired); on the dashboard's "Needs your action" strip,
+  "2 documents expiring in 30 days"; a filter on the Drivers list.
+- **Driver**: a banner in the driver app, "Your Iqama expires in 12 days.
+  Renew it and tell the office.", from 30 days before until it is updated;
+  red once expired. The driver can see their own dates but not change them.
+- **Expired documents** are a warning only (they do not block the driver's
+  login or entries) unless the owner later decides otherwise.
+
+| Step | What | Size |
+|---|---|---|
+| **DOC1** | Table + office editing on the driver page + badges; database test that a driver sees only their own dates | ½ day |
+| **DOC2** | Driver-app banner; dashboard action item and Drivers list filter (with D2) | ½ day |
