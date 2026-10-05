@@ -19,6 +19,14 @@ export function DriverStatementView({ st, driverName, who }: { st: DriverStateme
           Driver statement · {monthLabel(s.period_start.slice(0, 7))} ({s.period_start} to {s.period_end}) ·{' '}
           {s.status === 'closed' ? 'settled' : 'open, figures may still change'}
         </p>
+        {(st.employment ?? []).map(e => (
+          <p key={e.joined_on} className="text-xs text-zinc-500 print:text-zinc-700">
+            Joined {e.joined_on}
+            {e.last_working_day && ` · last working day ${e.last_working_day}`}
+            {e.left_on && ` · left ${e.left_on}`}
+            {e.leave_reason && ` (${e.leave_reason})`}
+          </p>
+        ))}
         {st.assignments.length > 0 && (
           <p className="text-xs text-zinc-500 print:text-zinc-700">
             Vehicles: {st.assignments.map(a => `${a.vehicle} ${a.from} ${a.to ? `to ${a.to}` : 'onward'}`).join('; ')}

@@ -72,7 +72,7 @@ export function AdminLiveBanner({ initialActivity, onRefresh }: Props) {
       {/* ── Correction Requests Badge ─────────────────────────────────────── */}
       {pendingCorrectionCount > 0 && (
         <Link
-          href="/admin/corrections"
+          href="/admin/inbox?tab=corrections"
           className="flex items-center gap-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-xl px-4 py-3 text-sm hover:bg-amber-100 dark:hover:bg-amber-950/50 transition-colors"
         >
           <Bell className="h-4 w-4 text-amber-600" />

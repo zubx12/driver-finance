@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { CalendarDays, LogOut, Pencil, Undo2 } from 'lucide-react';
+import { CalendarDays, LogOut, Pencil, RotateCcw, Undo2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { createClient } from '@/lib/supabase/client';
@@ -50,6 +50,8 @@ export function DriverEmployment({ driverId, status, onChanged }: {
   const [lastDay, setLastDay] = useState(riyadhToday());
   const [reason, setReason] = useState(LEAVE_REASONS[0]);
   const [reasonText, setReasonText] = useState('');
+  const [rejoining, setRejoining] = useState(false);
+  const [rejoinDate, setRejoinDate] = useState(riyadhToday());
 
   const fetchEmployment = useCallback(async () => {
     const { data: d, error: err } = await createClient().rpc('get_driver_employment', { p_driver_id: driverId });
@@ -88,6 +90,14 @@ export function DriverEmployment({ driverId, status, onChanged }: {
   const keepDriver = async () => {
     setBusy(true); setError(null);
     const { error: err } = await createClient().rpc('cancel_driver_leaving', { p_driver_id: driverId });
+    setBusy(false);
+    if (err) { setError(err.message); return; }
+    onChanged();
+  };
+
+  const rejoin = async () => {
+    setBusy(true); setError(null);
+    const { error: err } = await createClient().rpc('rejoin_driver', { p_driver_id: driverId, p_joined_on: rejoinDate });
     setBusy(false);
     if (err) { setError(err.message); return; }
     onChanged();
@@ -171,6 +181,32 @@ export function DriverEmployment({ driverId, status, onChanged }: {
               {busy ? 'Saving…' : 'Start leaving'}
             </Button>
             <Button size="sm" variant="ghost" disabled={busy} onClick={() => setLeaving(false)} className="h-8 text-xs">Cancel</Button>
+          </div>
+        </div>
+      )}
+      {status === 'Left' && !rejoining && (
+        <button onClick={() => { setRejoining(true); setError(null); }}
+          className="inline-flex items-center gap-1 text-xs text-indigo-600 hover:underline">
+          <RotateCcw className="h-3 w-3" />Rejoin…
+        </button>
+      )}
+      {rejoining && (
+        <div className="mt-2 p-3 rounded-xl border border-zinc-200 dark:border-zinc-800 space-y-2 max-w-xl">
+          <p className="font-semibold text-zinc-700 dark:text-zinc-300">Rejoin</p>
+          <label className="text-xs space-y-1 block">
+            <span>New joining date</span>
+            <Input type="date" min={cur?.left_on ?? undefined} max={riyadhToday()} value={rejoinDate}
+              onChange={e => setRejoinDate(e.target.value)} className="h-8 w-40" />
+          </label>
+          <p className="text-xs">
+            A new employment period starts on the same record; the old history stays. The driver can log in again.
+            Assign a vehicle and pay terms afterwards, as for a new driver.
+          </p>
+          <div className="flex gap-2">
+            <Button size="sm" disabled={busy || !rejoinDate} onClick={rejoin} className="h-8 text-xs bg-indigo-600 hover:bg-indigo-700 text-white">
+              {busy ? 'Saving…' : 'Rejoin'}
+            </Button>
+            <Button size="sm" variant="ghost" disabled={busy} onClick={() => setRejoining(false)} className="h-8 text-xs">Cancel</Button>
           </div>
         </div>
       )}
