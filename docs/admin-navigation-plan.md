@@ -13,7 +13,19 @@ Problems: related work is split over separate pages (two settlement pages,
 three review queues, close / payouts / reports for the same month); the list
 does not fit on a laptop screen; nothing shows what needs attention.
 
-## 2. Target (8 items, in groups, with counts)
+## 2. Target (in groups, with counts)
+
+Built 2026-10-05 (branch feat/admin-navigation), final structure:
+```
+Overview · Inbox (count)   Inbox tabs: Cash handovers · Expense review · Corrections
+MANAGE    Drivers · Vehicles · Partners
+FINANCE   Month End        tabs: Checklist · Payouts · Driver settlements · Partner settlements
+          Vouchers (count) tabs: Outstanding · Handed to partners
+REPORTS   Reports          tabs: Monthly reports · Daily entries
+SYSTEM    Audit Log
+```
+Each screen inside Month End still has its own month picker (one shared picker
+is a later polish step). The first draft of the target follows.
 
 ```
 Overview

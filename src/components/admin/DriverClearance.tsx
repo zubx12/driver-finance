@@ -24,11 +24,11 @@ interface Clearance {
 }
 
 const LINKS: Record<string, { href: string; label: string }> = {
-  handovers: { href: '/admin/handovers', label: 'Cash Handovers' },
-  corrections: { href: '/admin/corrections', label: 'Corrections' },
-  payouts: { href: '/admin/salary', label: 'Salary Runs' },
-  settlements: { href: '/admin/driver-settlements', label: 'Driver Settlements' },
-  final_balance: { href: '/admin/driver-settlements', label: 'Driver Settlements' },
+  handovers: { href: '/admin/inbox?tab=handovers', label: 'Cash Handovers' },
+  corrections: { href: '/admin/inbox?tab=corrections', label: 'Corrections' },
+  payouts: { href: '/admin/month-end?tab=payouts', label: 'Salary Runs' },
+  settlements: { href: '/admin/month-end?tab=drivers', label: 'Driver Settlements' },
+  final_balance: { href: '/admin/month-end?tab=drivers', label: 'Driver Settlements' },
 };
 
 export function DriverClearance({ driverId, onChanged }: { driverId: string; onChanged: () => void }) {

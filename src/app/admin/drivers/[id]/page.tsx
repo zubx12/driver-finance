@@ -210,7 +210,7 @@ export default function DriverDetailPage() {
   };
 
   // The driver's monthly statement (7F) for the selected month.
-  const statementHref = `/admin/reports?kind=driver&driver=${id}&month=${selectedMonth.value}`;
+  const statementHref = `/admin/reports?tab=monthly&kind=driver&driver=${id}&month=${selectedMonth.value}`;
   const exportStatementCsv = async () => {
     if (!driver) return;
     setExporting(true); setActionError(null);
