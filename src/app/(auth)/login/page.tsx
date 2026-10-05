@@ -38,7 +38,10 @@ export default function LoginPage() {
         // Drivers and partners log in with username + password.
         // We convert the username to a synthetic email — they never see this.
         const cleanUsername = identifier.trim().toLowerCase().replace(/\s+/g, '_');
-        const email = `${cleanUsername}@${DOMAIN}`;
+        // Strip any @domain the user may have typed (e.g. "zubair@admin.com" → "zubair")
+        // so the resulting email matches what was stored: localPart@driverfinance.internal
+        const localPart = cleanUsername.includes('@') ? cleanUsername.split('@')[0] : cleanUsername;
+        const email = `${localPart}@${DOMAIN}`;
         result = await supabase.auth.signInWithPassword({ email, password });
       }
 

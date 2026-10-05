@@ -60,7 +60,7 @@ export async function POST(request: NextRequest) {
     email_confirm: true,
     // Role lives in app_metadata (service-role only); user_metadata is user-editable.
     app_metadata: { role: 'driver', roles: ['driver'] },
-    user_metadata: { name, username: cleanUsername },
+    user_metadata: { name, username: localPart },
   });
 
   if (authError) {
@@ -71,7 +71,7 @@ export async function POST(request: NextRequest) {
     .from('drivers')
     .insert({
       name,
-      username: cleanUsername,
+      username: localPart,
       linked_auth_id: authData.user.id,
       status,
       vehicle_id: vehicleId ?? null,

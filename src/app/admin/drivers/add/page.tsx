@@ -36,6 +36,8 @@ export default function AddDriverPage() {
   }, []);
 
   const cleanUsername = username.trim().toLowerCase().replace(/\s+/g, '_');
+  // The actual login username strips any @domain the admin may have typed
+  const loginUsername = cleanUsername.includes('@') ? cleanUsername.split('@')[0] : cleanUsername;
   const isValid = name.trim().length > 0 && cleanUsername.length >= 3 && password.length >= 6;
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -106,7 +108,7 @@ export default function AddDriverPage() {
   };
 
   const handleCopy = () => {
-    navigator.clipboard.writeText(`Username: ${cleanUsername}\nPassword: ${password}`);
+    navigator.clipboard.writeText(`Username: ${loginUsername}\nPassword: ${password}`);
     alert('Credentials copied!');
   };
 
@@ -133,7 +135,7 @@ export default function AddDriverPage() {
             <div className="space-y-4 font-mono text-sm">
               <div>
                 <span className="text-ink-soft text-xs uppercase tracking-wider block mb-1">Username</span>
-                <span className="text-ink font-semibold text-lg">{cleanUsername}</span>
+                <span className="text-ink font-semibold text-lg">{loginUsername}</span>
               </div>
               <div>
                 <span className="text-ink-soft text-xs uppercase tracking-wider block mb-1">Password</span>
@@ -210,7 +212,7 @@ export default function AddDriverPage() {
                     placeholder="e.g. ahmed_driver"
                   />
                 </div>
-                {cleanUsername && <p className="text-xs text-ink-soft">Login ID: @{cleanUsername}</p>}
+                {cleanUsername && <p className="text-xs text-ink-soft">Login ID: @{loginUsername}</p>}
               </div>
             </div>
           </div>
@@ -366,7 +368,7 @@ export default function AddDriverPage() {
               <div>
                 <p className="text-sm font-medium text-ink">Ready to create account</p>
                 <p className="text-xs text-ink-soft mt-1">
-                  Creating {status ? 'Active' : 'Inactive'} account for <strong className="text-ink">{name}</strong> (@{cleanUsername})
+                  Creating {status ? 'Active' : 'Inactive'} account for <strong className="text-ink">{name}</strong> (@{loginUsername})
                   {selectedVehicle ? `, assigned to ${selectedVehicle.make} ${selectedVehicle.model}` : ', no vehicle assigned yet'}.
                 </p>
               </div>
