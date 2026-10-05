@@ -36,7 +36,10 @@ export async function GET(request: NextRequest) {
     query = query.or(`name.ilike.%${search}%,username.ilike.%${search}%`);
   }
 
-  if (status) {
+  // "current": everyone except drivers who have left (the list's default).
+  if (status === 'current') {
+    query = query.neq('status', 'Left');
+  } else if (status) {
     query = query.eq('status', status);
   }
 

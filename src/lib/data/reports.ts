@@ -54,6 +54,8 @@ export interface VehicleMonthReport {
 
 export interface DriverStatement {
   settlement: DriverSettlement;
+  /** Employment periods touching the month (joined, last working day, left). */
+  employment?: { joined_on: string; last_working_day: string | null; left_on: string | null; leave_reason: string | null }[];
   assignments: { vehicle: string; from: string; to: string | null }[];
   cash_rides: { date: string; vehicle: string | null; amount: Num }[];
   vouchers_collected: {
@@ -144,6 +146,8 @@ export function driverStatementCsv(st: DriverStatement, driverName: string): Csv
   return [
     ['Driver statement', driverName],
     ['Period', s.period_start, s.period_end, s.status === 'closed' ? 'Settled' : 'Open'],
+    ...(st.employment ?? []).map(e => ['Employment', `joined ${e.joined_on}`,
+      e.last_working_day ? `last working day ${e.last_working_day}` : '', e.left_on ? `left ${e.left_on}` : '', e.leave_reason ?? '']),
     [],
     ['Opening balance', s.opening_balance], ['Cash collected', s.cash_collected], ['Vouchers collected', s.vouchers_collected],
     ['Expenses paid', -s.expenses_paid], ['Driver pay', -s.driver_pay], ['Handed over (confirmed)', -s.handovers_confirmed],

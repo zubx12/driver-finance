@@ -19,6 +19,14 @@ interface Driver {
 
 const PAGE_LIMIT = 50;
 
+type StatusFilter = 'current' | 'Leaving' | 'Left' | 'all';
+const STATUS_FILTERS: { key: StatusFilter; label: string }[] = [
+  { key: 'current', label: 'Current' },
+  { key: 'Leaving', label: 'Leaving' },
+  { key: 'Left', label: 'Left' },
+  { key: 'all', label: 'All' },
+];
+
 export default function DriversList() {
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [loading, setLoading] = useState(true);
@@ -27,6 +35,7 @@ export default function DriversList() {
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [total, setTotal] = useState(0);
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('current');
 
   // Debounce search input by 300ms
   useEffect(() => {
@@ -42,6 +51,7 @@ export default function DriversList() {
     setLoading(true);
     const params = new URLSearchParams({ page: String(page), limit: String(PAGE_LIMIT) });
     if (debouncedSearch) params.set('search', debouncedSearch);
+    if (statusFilter !== 'all') params.set('status', statusFilter);
 
     fetch(`/api/admin/drivers-list-full?${params}`)
       .then(r => r.json())
@@ -51,7 +61,7 @@ export default function DriversList() {
         setTotalPages(res.totalPages ?? 1);
       })
       .finally(() => setLoading(false));
-  }, [page, debouncedSearch]);
+  }, [page, debouncedSearch, statusFilter]);
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
@@ -69,9 +79,20 @@ export default function DriversList() {
 
       <Card className="border-zinc-200 dark:border-zinc-800">
         <CardHeader className="py-4 px-6 border-b dark:border-zinc-800">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3">
           <div className="relative w-full sm:w-72">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-400" />
             <Input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search drivers..." className="pl-9 bg-zinc-50 dark:bg-zinc-900/50" />
+          </div>
+          <div className="flex gap-1" role="group" aria-label="Driver status">
+            {STATUS_FILTERS.map(f => (
+              <button key={f.key} aria-pressed={statusFilter === f.key}
+                onClick={() => { if (f.key !== statusFilter) { setStatusFilter(f.key); setPage(1); } }}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium ${statusFilter === f.key ? 'bg-indigo-600 text-white' : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700'}`}>
+                {f.label}
+              </button>
+            ))}
+          </div>
           </div>
         </CardHeader>
         <CardContent className="p-0">
@@ -92,7 +113,9 @@ export default function DriversList() {
                 )}
                 {!loading && drivers.length === 0 && (
                   <tr><td colSpan={5} className="px-6 py-10 text-center text-zinc-400 text-sm">
-                    {debouncedSearch ? 'No drivers match your search.' : 'No drivers yet. Add your first driver to get started.'}
+                    {debouncedSearch ? 'No drivers match your search.'
+                      : statusFilter === 'current' || statusFilter === 'all' ? 'No drivers yet. Add your first driver to get started.'
+                      : `No drivers with status ${statusFilter}.`}
                   </td></tr>
                 )}
                 {drivers.map((driver) => (
@@ -125,6 +148,8 @@ export default function DriversList() {
                       <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
                         driver.status === 'Active'
                           ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400'
+                          : driver.status === 'Leaving'
+                          ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400'
                           : 'bg-zinc-100 text-zinc-800 dark:bg-zinc-800 dark:text-zinc-400'
                       }`}>
                         {driver.status}
