@@ -15,6 +15,8 @@ export interface SettlementPayLine {
 export interface DriverSettlement {
   driver_id: string;
   driver_name: string | null;
+  /** Active / Leaving / Left ...: a write-off is offered only while Leaving. */
+  driver_status?: string | null;
   period_start: string;
   period_end: string;
   status: 'open' | 'closed';
@@ -34,6 +36,9 @@ export interface DriverSettlement {
   blockers: string[];
   // Present once closed.
   settled_amount?: number;
+  /** Final settlement of a leaving driver: the part not to be paid (with reason). */
+  written_off?: number;
+  write_off_reason?: string | null;
   carried_forward?: number;
   settle_method?: 'cash' | 'bank_transfer' | null;
   settle_reference?: string | null;
@@ -75,6 +80,8 @@ export async function closeSettlement(args: {
   method: 'cash' | 'bank_transfer' | null;
   reference?: string;
   note?: string;
+  writeOff?: number;
+  writeOffReason?: string;
 }): Promise<void> {
   const { error } = await createClient().rpc('close_driver_settlement', {
     p_driver_id: args.driverId,
@@ -83,6 +90,8 @@ export async function closeSettlement(args: {
     p_method: args.method,
     p_reference: args.reference || null,
     p_note: args.note || null,
+    p_write_off: args.writeOff ?? 0,
+    p_write_off_reason: args.writeOffReason || null,
   });
   if (error) throw new Error(error.message);
 }

@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useParams } from 'next/navigation';
 import { AssignmentHistory } from '@/components/admin/AssignmentHistory';
 import { DriverEmployment } from '@/components/admin/DriverEmployment';
+import { DriverClearance } from '@/components/admin/DriverClearance';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import {
@@ -298,6 +299,10 @@ export default function DriverDetailPage() {
         </div>
         </div>
       </header>
+
+      {(driver.status === 'Leaving' || driver.status === 'Left') && (
+        <DriverClearance driverId={id} onChanged={() => window.location.reload()} />
+      )}
 
       {actionError && (
         <div role="alert" className="p-3 bg-red-50 border border-red-200 dark:bg-red-950/20 dark:border-red-800 rounded-xl flex items-center gap-2 text-sm text-red-700 dark:text-red-400">

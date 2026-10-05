@@ -16,9 +16,12 @@ import { SettlementBreakdown, balanceWords } from '@/components/SettlementBreakd
 // office pays the difference now or carries it to next month. The calculation,
 // the order of months and the lock on settled entries live in the database.
 
-interface CloseForm { amount: string; method: 'cash' | 'bank_transfer'; reference: string; note: string; }
+interface CloseForm {
+  amount: string; method: 'cash' | 'bank_transfer'; reference: string; note: string;
+  writeOff: string; writeOffReason: string;
+}
 const emptyForm = (s: DriverSettlement): CloseForm => ({
-  amount: Math.abs(s.closing_balance).toFixed(2), method: 'cash', reference: '', note: '',
+  amount: Math.abs(s.closing_balance).toFixed(2), method: 'cash', reference: '', note: '', writeOff: '', writeOffReason: '',
 });
 
 export default function AdminDriverSettlementsPage() {
@@ -58,8 +61,14 @@ export default function AdminDriverSettlementsPage() {
   const close = async (s: DriverSettlement) => {
     const f = forms[s.driver_id] ?? emptyForm(s);
     const amount = Number(f.amount || 0);
-    if (!Number.isFinite(amount) || amount < 0 || amount > Math.abs(s.closing_balance) + 0.001) {
-      setError(`The amount paid now must be between 0 and ${Math.abs(s.closing_balance).toFixed(2)}.`);
+    const writeOff = s.driver_status === 'Leaving' ? Number(f.writeOff || 0) : 0;
+    if (!Number.isFinite(amount) || !Number.isFinite(writeOff) || amount < 0 || writeOff < 0
+        || amount + writeOff > Math.abs(s.closing_balance) + 0.001) {
+      setError(`The amount paid now plus any write-off must be between 0 and ${Math.abs(s.closing_balance).toFixed(2)}.`);
+      return;
+    }
+    if (writeOff > 0 && !f.writeOffReason.trim()) {
+      setError('Give the reason for the write-off.');
       return;
     }
     setBusy(s.driver_id); setError(null); setNotice(null);
@@ -67,8 +76,9 @@ export default function AdminDriverSettlementsPage() {
       await closeSettlement({
         driverId: s.driver_id, month, settledAmount: amount,
         method: amount > 0 ? f.method : null, reference: f.reference, note: f.note,
+        writeOff, writeOffReason: f.writeOffReason,
       });
-      const carried = s.closing_balance - Math.sign(s.closing_balance) * amount;
+      const carried = s.closing_balance - Math.sign(s.closing_balance) * (amount + writeOff);
       setNotice(`${s.driver_name ?? 'Driver'}: ${monthLabel(month)} settled${carried !== 0 ? `, SAR ${Math.abs(carried).toFixed(2)} carried to next month` : ''}.`);
       await load(month);
     } catch (e) {
@@ -174,6 +184,19 @@ export default function AdminDriverSettlementsPage() {
                           <Input placeholder="Reference (optional)" value={f.reference} onChange={e => setF({ reference: e.target.value })} className="h-8 text-xs" />
                           <Input placeholder="Note (optional)" value={f.note} onChange={e => setF({ note: e.target.value })} className="h-8 text-xs" />
                         </div>
+                        {s.driver_status === 'Leaving' && s.closing_balance !== 0 && (
+                          <div className="space-y-1 rounded-lg bg-amber-50 dark:bg-amber-950/20 p-2">
+                            <p className="text-[11px] text-amber-800 dark:text-amber-300">
+                              Final settlement of a leaving driver: nothing can be carried forward. Write off what will not be paid, with a reason.
+                            </p>
+                            <div className="grid grid-cols-2 gap-2">
+                              <Input type="number" min="0" step="0.01" placeholder="Write off (SAR)" value={f.writeOff}
+                                onChange={e => setF({ writeOff: e.target.value })} className="h-8 text-xs" />
+                              <Input placeholder="Reason for the write-off" value={f.writeOffReason}
+                                onChange={e => setF({ writeOffReason: e.target.value })} className="h-8 text-xs" />
+                            </div>
+                          </div>
+                        )}
                         <Button size="sm" disabled={busy === s.driver_id} onClick={() => close(s)}
                           className="w-full h-8 text-xs bg-indigo-600 hover:bg-indigo-700 text-white">
                           {busy === s.driver_id ? 'Saving…' : `Settle ${monthLabel(month)}`}
