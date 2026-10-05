@@ -1,7 +1,7 @@
 # Agent prompt: driver workspace + simpler admin navigation
 
 Copy everything below the line into the agent. It is written for an agent that
-has not seen our conversations. Version 2 (2026-10-05): merges the owner's
+has not seen our conversations. Version 3 (2026-10-05; driver codes and the company name Mehar Transport approved): merges the owner's
 second draft (driver workspace tabs, global vs driver-level, filters, exports)
 with the facts of the codebase, and corrects that draft where it did not match
 the system's money rules (see section 9 at the end; the agent does not need it).
@@ -67,12 +67,22 @@ Front end: `src/lib/dates.ts` (`riyadhToday`, `monthOf`, `addDays`),
 - **Nothing with money is ever deleted** (a database rule blocks it). Finalized payouts and closed settlements are locked; never recalculate them.
 
 ## 3. Task A: driver workspace (tabs on the driver page)
-Header: name, username, status badge, phone, joined date and time with the company,
+Header: name, **driver code** (e.g. `DRV-00042`, section 3a), username, status badge, phone, joined date and time with the company,
 last working day / left date and reason when set, current vehicle and since when,
 current pay terms and since when, **balance with the office**, "also a partner"
 when the driver's login is linked to a partner, last activity (latest entry),
 account created. Actions: Statement (month), CSV, Excel, Edit, More (Start
 leaving / Rejoin). Keep the existing look (cards, colours, typography).
+
+### 3a. Driver codes (owner decision 2026-10-05)
+Every driver gets a short, permanent code `DRV-00001`, `DRV-00002`, … shown in the
+header, the Drivers list (searchable), statements, PDF / Excel / CSV exports.
+- New column `drivers.driver_code text UNIQUE NOT NULL`, filled from a sequence when a
+  driver is created (trigger), format `'DRV-' || lpad(n::text, 5, '0')`.
+- Existing drivers: numbered in order of account creation (oldest = DRV-00001).
+- Read-only: nobody can change or reuse a code (a rejoining driver keeps theirs;
+  the internal id stays the key everywhere). Test: unique, assigned on insert,
+  cannot be updated, existing drivers backfilled in creation order.
 
 Tabs (one month selector shared by all tabs; URL `?tab=…&month=YYYY-MM`):
 1. **Overview**: month figures with change vs the previous month (▲▼ %):
@@ -130,8 +140,8 @@ SYSTEM   Audit log
   **same rows** as the CSV (one function producing rows, two writers).
 - **PDF**: a one-click real PDF file with selectable text (not a screenshot), built
   from the same data as the screen (e.g. `@react-pdf/renderer` or `pdfmake`):
-  company name (do not hardcode financial values; ask the owner for the exact
-  company name and logo), driver, period, performance summary, payment methods,
+  company name **Mehar Transport** (no logo yet: use the name as a text header;
+  keep it in one constant so a logo can be added later), driver name and code, period, performance summary, payment methods,
   voucher summary, expenses by category, settlement (opening → closing, paid,
   written off, carried), detailed lists, generated at (Riyadh) and by whom.
   The existing print view (Statement button) stays as an alternative.
@@ -150,7 +160,7 @@ SYSTEM   Audit log
 - Do not change payout, settlement, voucher or clearance calculations.
 - Do not create a second audit system, revenue table or export system.
 - Do not add menu items beyond section 5, or pages that are not in this prompt.
-- Do not invent fields (passenger, voucher number, due date, driver code) without asking.
+- Do not invent fields (passenger, voucher number, due date) without asking. (Driver codes are approved: section 3a.)
 
 ## 9. Report back after each step
 Files changed, migration name, tests added with the summary lines of
@@ -167,8 +177,8 @@ the migration before it is merged.
    **partners** (there is no company share), and the driver's settlement is cash
    based. Building it would show wrong money.
 2. "Net revenue" for a driver: removed (it misleads); "before driver pay" only.
-3. Voucher passenger / number / issue and due dates and "DRV-00042" codes do not
-   exist; the agent must not invent them (ask first).
+3. Voucher passenger / number / issue and due dates do not exist; the agent must not
+   invent them. Driver codes (DRV-00042) were approved by the owner: section 3a.
 4. "Settings" and "Audit / Corrections" pages: Settings does not exist; Corrections
    is a review queue (Inbox), the audit log stays under System.
 5. It told the agent to inspect everything from scratch and missed what is
