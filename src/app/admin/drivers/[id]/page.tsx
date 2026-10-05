@@ -16,15 +16,20 @@ import { riyadhToday, monthOf } from '@/lib/dates';
 import { getReceiptSignedUrl } from '@/lib/data/expenses';
 import { driverStatementCsv, fetchDriverStatement } from '@/lib/data/reports';
 import { downloadCsv } from '@/lib/csv';
+import { createClient } from '@/lib/supabase/client';
 
 // ── Types ──────────────────────────────────────────────────────────
 interface Driver {
   id: string;
+  driver_code: string;
   name: string;
   username: string | null;
   phone: string | null;
   status: string;
   vehicle_id: string | null;
+  created_at: string | null;
+  is_partner: boolean;
+  last_activity: string | null;
 }
 
 interface Vehicle {
@@ -43,7 +48,7 @@ interface Ride {
   payment_status: string;
   payer_id: string | null;
   reference: string | null;
-  notes: string | null;
+  notes?: string | null;
   payers: { name: string } | null;
   vehicles: { plate_number: string } | null;
 }
@@ -84,6 +89,26 @@ const PAID_BY_LABEL: Record<Expense['paid_by'], string> = {
   company: 'Paid by company',
   office: 'Paid by office',
 };
+
+// get_driver_profile (database, office only): the page's data for one month.
+interface DriverProfileData {
+  driver: Driver;
+  vehicle: (Vehicle & { since: string | null }) | null;
+  vehiclePartners: PartnerShareRow[];
+  driverCompensation: PayTerms | null;
+  rides: Ride[];
+  expenses: Expense[];
+  balance: { carried_forward: number; period_start: string } | null;
+}
+
+async function fetchDriverProfile(id: string, month: string): Promise<DriverProfileData> {
+  const { data, error } = await createClient().rpc('get_driver_profile', { p_driver_id: id, p_month: `${month}-01` });
+  if (error) throw new Error(error.message);
+  return data as DriverProfileData;
+}
+
+const fmtDay = (iso: string) =>
+  new Date(iso.length === 10 ? `${iso}T12:00:00Z` : iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Asia/Riyadh' });
 
 interface MonthOption {
   label: string;
@@ -141,7 +166,9 @@ export default function DriverDetailPage() {
   const [tab, setTab] = useState<'rides' | 'expenses'>('rides');
 
   const [driver, setDriver] = useState<Driver | null>(null);
-  const [vehicle, setVehicle] = useState<Vehicle | null>(null);
+  const [vehicle, setVehicle] = useState<DriverProfileData['vehicle']>(null);
+  const [balance, setBalance] = useState<DriverProfileData['balance']>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [vehiclePartners, setVehiclePartners] = useState<PartnerShareRow[]>([]);
   const [driverCompensation, setDriverCompensation] = useState<PayTerms | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -151,20 +178,21 @@ export default function DriverDetailPage() {
   const [loading, setLoading] = useState(true);
   const [dataLoading, setDataLoading] = useState(false);
 
-  // Load driver profile + initial month data from server API
+  // Driver profile + the selected month, from one admin-only database call.
   useEffect(() => {
     if (!id) return;
     async function loadInitial() {
-      const monthParam = `${selectedMonth.start.slice(0, 7)}`;
-      const res = await fetch(`/api/admin/driver-detail?id=${id}&month=${monthParam}`);
-      if (res.ok) {
-        const data = await res.json();
+      try {
+        const data = await fetchDriverProfile(id, selectedMonth.value);
         setDriver(data.driver);
         setVehicle(data.vehicle);
-        setVehiclePartners(data.vehiclePartners || []);
-        setDriverCompensation(data.driverCompensation || null);
-        setRides(data.rides || []);
-        setExpenses(data.expenses || []);
+        setBalance(data.balance);
+        setVehiclePartners(data.vehiclePartners ?? []);
+        setDriverCompensation(data.driverCompensation ?? null);
+        setRides(data.rides ?? []);
+        setExpenses(data.expenses ?? []);
+      } catch (e) {
+        setLoadError(e instanceof Error ? e.message : 'The driver could not be loaded.');
       }
       setLoading(false);
     }
@@ -174,15 +202,16 @@ export default function DriverDetailPage() {
 
   const loadMonthData = useCallback(async (month: MonthOption) => {
     setDataLoading(true);
-    const monthParam = `${month.start.slice(0, 7)}`;
-    const res = await fetch(`/api/admin/driver-detail?id=${id}&month=${monthParam}`);
-    if (res.ok) {
-      const data = await res.json();
+    try {
+      const data = await fetchDriverProfile(id, month.value);
       // Owners and pay terms can differ from month to month.
-      setVehiclePartners(data.vehiclePartners || []);
-      setDriverCompensation(data.driverCompensation || null);
-      setRides(data.rides || []);
-      setExpenses(data.expenses || []);
+      setVehiclePartners(data.vehiclePartners ?? []);
+      setDriverCompensation(data.driverCompensation ?? null);
+      setRides(data.rides ?? []);
+      setExpenses(data.expenses ?? []);
+      setActionError(null);
+    } catch (e) {
+      setActionError(e instanceof Error ? e.message : 'The month could not be loaded.');
     }
     setDataLoading(false);
   }, [id]);
@@ -216,7 +245,7 @@ export default function DriverDetailPage() {
     setExporting(true); setActionError(null);
     try {
       const st = await fetchDriverStatement(id, selectedMonth.value);
-      downloadCsv(`driver-statement-${driver.name.replace(/\s+/g, '-')}-${selectedMonth.value}.csv`, driverStatementCsv(st, driver.name));
+      downloadCsv(`driver-statement-${driver.driver_code}-${selectedMonth.value}.csv`, driverStatementCsv(st, `${driver.name} (${driver.driver_code})`));
     } catch (e) {
       setActionError(e instanceof Error ? e.message : 'The statement could not be downloaded.');
     }
@@ -239,7 +268,7 @@ export default function DriverDetailPage() {
   if (!driver) {
     return (
       <div className="max-w-7xl mx-auto p-8 text-center">
-        <p className="text-zinc-500">Driver not found.</p>
+        <p className="text-zinc-500">{loadError ?? 'Driver not found.'}</p>
         <Link href="/admin/drivers"><Button variant="outline" className="mt-4">Back to Drivers</Button></Link>
       </div>
     );
@@ -258,7 +287,8 @@ export default function DriverDetailPage() {
           <div>
             <h1 className="text-3xl font-bold tracking-tight">{driver.name}</h1>
             <p className="text-zinc-500 text-sm">
-              {driver.username ? `@${driver.username}` : ''}
+              <span className="font-mono font-semibold text-zinc-700 dark:text-zinc-300">{driver.driver_code}</span>
+              {driver.username ? ` · @${driver.username}` : ''}
               {driver.phone ? ` · ${driver.phone}` : ''}
               {' · '}
               <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
@@ -268,6 +298,21 @@ export default function DriverDetailPage() {
                   ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400'
                   : 'bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400'
               }`}>{driver.status}</span>
+              {driver.is_partner && (
+                <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-300">Also a partner</span>
+              )}
+            </p>
+            <p className="text-xs text-zinc-500">
+              {driver.last_activity ? `Last activity ${fmtDay(driver.last_activity)}` : 'No activity yet'}
+              {driver.created_at && ` · account created ${fmtDay(driver.created_at)}`}
+              {balance && Number(balance.carried_forward) !== 0 && (
+                <span className="font-semibold text-zinc-700 dark:text-zinc-300">
+                  {' · '}{Number(balance.carried_forward) > 0
+                    ? `owes the office SAR ${Number(balance.carried_forward).toFixed(2)}`
+                    : `the office owes SAR ${(-Number(balance.carried_forward)).toFixed(2)}`}
+                  {` (after ${new Date(`${balance.period_start}T12:00:00Z`).toLocaleDateString('en-GB', { month: 'long', year: 'numeric', timeZone: 'UTC' })})`}
+                </span>
+              )}
             </p>
             <DriverEmployment driverId={id} status={driver.status} onChanged={() => window.location.reload()} />
           </div>
@@ -320,6 +365,7 @@ export default function DriverDetailPage() {
             <div>
               <p className="font-bold text-lg">{vehicle.make} {vehicle.model}</p>
               <p className="text-sm text-zinc-500 font-mono">{vehicle.plate_number}{vehicle.year ? ` · ${vehicle.year}` : ''}</p>
+              {vehicle.since && <p className="text-xs text-zinc-500">Driving it since {fmtDay(vehicle.since)}</p>}
             </div>
             <div className="ml-auto">
               <Link href={`/admin/vehicles/${vehicle.id}/setup`}>

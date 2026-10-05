@@ -9,6 +9,7 @@ import { Search, MoreHorizontal, Car, UserCheck, ChevronLeft, ChevronRight } fro
 
 interface Driver {
   id: string;
+  driver_code: string;
   name: string;
   username: string | null;
   status: string;
@@ -82,7 +83,7 @@ export default function DriversList() {
           <div className="flex flex-col sm:flex-row sm:items-center gap-3">
           <div className="relative w-full sm:w-72">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-400" />
-            <Input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search drivers..." className="pl-9 bg-zinc-50 dark:bg-zinc-900/50" />
+            <Input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search name, username or DRV code…" className="pl-9 bg-zinc-50 dark:bg-zinc-900/50" />
           </div>
           <div className="flex gap-1" role="group" aria-label="Driver status">
             {STATUS_FILTERS.map(f => (
@@ -124,6 +125,7 @@ export default function DriversList() {
                       <Link href={`/admin/drivers/${driver.id}`} className="text-indigo-600 hover:text-indigo-700 hover:underline">
                         {driver.name}
                       </Link>
+                      <span className="ml-2 font-mono text-xs text-zinc-400">{driver.driver_code}</span>
                       {driver.is_partner && (
                         <span className="ml-2 text-[10px] font-bold uppercase bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300 px-1.5 py-0.5 rounded" title="This person is also a partner: driver pay and partner share are paid separately.">
                           Also partner

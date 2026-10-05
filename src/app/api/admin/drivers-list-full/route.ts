@@ -30,10 +30,10 @@ export async function GET(request: NextRequest) {
 
   let query = admin
     .from('drivers')
-    .select('id, name, username, status, vehicle_id, linked_auth_id, vehicles(make, model, plate_number)', { count: 'exact' });
+    .select('id, driver_code, name, username, status, vehicle_id, linked_auth_id, vehicles(make, model, plate_number)', { count: 'exact' });
 
   if (search) {
-    query = query.or(`name.ilike.%${search}%,username.ilike.%${search}%`);
+    query = query.or(`name.ilike.%${search}%,username.ilike.%${search}%,driver_code.ilike.%${search}%`);
   }
 
   // "current": everyone except drivers who have left (the list's default).
