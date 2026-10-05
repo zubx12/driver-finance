@@ -1,8 +1,8 @@
-﻿'use client';
+'use client';
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { ChevronLeft, Key, User, AtSign, CheckCircle, Copy, Car } from 'lucide-react';
+import { ChevronLeft, Key, User, AtSign, CheckCircle, Copy, Car, Plus, X } from 'lucide-react';
 
 interface Vehicle { id: string; make: string; model: string; plate_number: string; }
 
@@ -18,6 +18,15 @@ export default function AddDriverPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Inline vehicle creation state
+  const [showNewVehicle, setShowNewVehicle] = useState(false);
+  const [newVehicleMake, setNewVehicleMake] = useState('');
+  const [newVehicleModel, setNewVehicleModel] = useState('');
+  const [newVehicleYear, setNewVehicleYear] = useState(new Date().getFullYear().toString());
+  const [newVehiclePlate, setNewVehiclePlate] = useState('');
+  const [isCreatingVehicle, setIsCreatingVehicle] = useState(false);
+  const [vehicleError, setVehicleError] = useState<string | null>(null);
 
   useEffect(() => {
     fetch('/api/admin/vehicles-list')
@@ -53,6 +62,46 @@ export default function AddDriverPage() {
       setError(err.message);
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleCreateVehicle = async () => {
+    if (!newVehicleMake.trim() || !newVehicleModel.trim() || !newVehicleYear.trim() || !newVehiclePlate.trim()) {
+      setVehicleError('All vehicle fields are required.');
+      return;
+    }
+    setIsCreatingVehicle(true);
+    setVehicleError(null);
+    try {
+      const res = await fetch('/api/admin/create-vehicle', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          make: newVehicleMake.trim(),
+          model: newVehicleModel.trim(),
+          year: newVehicleYear.trim(),
+          plate_number: newVehiclePlate.trim().toUpperCase(),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || data.message || 'Failed to create vehicle');
+      const newVehicle: Vehicle = {
+        id: data.vehicleId,
+        make: newVehicleMake.trim(),
+        model: newVehicleModel.trim(),
+        plate_number: newVehiclePlate.trim().toUpperCase(),
+      };
+      setVehicles(prev => [...prev, newVehicle]);
+      setVehicleId(data.vehicleId);
+      setShowNewVehicle(false);
+      setNewVehicleMake('');
+      setNewVehicleModel('');
+      setNewVehicleYear(new Date().getFullYear().toString());
+      setNewVehiclePlate('');
+    } catch (err: any) {
+      setVehicleError(err.message);
+    } finally {
+      setIsCreatingVehicle(false);
     }
   };
 
@@ -170,26 +219,104 @@ export default function AddDriverPage() {
 
           {/* Vehicle Assignment */}
           <div className="space-y-4">
-            <div>
-              <h3 className="font-heading text-lg font-bold text-ink">Vehicle Assignment</h3>
-              <p className="text-sm text-ink-soft">Optional — can also be assigned later from the Vehicles page.</p>
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-ink">Assign Vehicle</label>
-              <div className="relative">
-                <Car className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-ink-soft" />
-                <select
-                  value={vehicleId}
-                  onChange={(e) => setVehicleId(e.target.value)}
-                  className="w-full h-11 pl-10 pr-4 bg-paper border border-line rounded-lg text-ink focus:outline-none focus:ring-2 focus:ring-ink/20 appearance-none"
-                >
-                  <option value="">— No vehicle assigned yet —</option>
-                  {vehicles.map(v => (
-                    <option key={v.id} value={v.id}>{v.make} {v.model} — {v.plate_number}</option>
-                  ))}
-                </select>
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="font-heading text-lg font-bold text-ink">Vehicle Assignment</h3>
+                <p className="text-sm text-ink-soft">Optional — can also be assigned later from the Vehicles page.</p>
               </div>
+              {!showNewVehicle && (
+                <button
+                  type="button"
+                  onClick={() => { setShowNewVehicle(true); setVehicleError(null); }}
+                  className="flex items-center gap-1.5 text-sm font-medium text-ink-soft hover:text-ink transition-colors"
+                >
+                  <Plus className="h-4 w-4" />
+                  Add New Vehicle
+                </button>
+              )}
             </div>
+
+            {!showNewVehicle ? (
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-ink">Assign Vehicle</label>
+                <div className="relative">
+                  <Car className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-ink-soft" />
+                  <select
+                    value={vehicleId}
+                    onChange={(e) => setVehicleId(e.target.value)}
+                    className="w-full h-11 pl-10 pr-4 bg-paper border border-line rounded-lg text-ink focus:outline-none focus:ring-2 focus:ring-ink/20 appearance-none"
+                  >
+                    <option value="">— No vehicle assigned yet —</option>
+                    {vehicles.map(v => (
+                      <option key={v.id} value={v.id}>{v.make} {v.model} — {v.plate_number}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            ) : (
+              <div className="border border-line rounded-lg p-4 bg-paper space-y-4">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-sm font-semibold text-ink">Create New Vehicle</h4>
+                  <button
+                    type="button"
+                    onClick={() => { setShowNewVehicle(false); setVehicleError(null); }}
+                    className="p-1 text-ink-soft hover:text-ink rounded transition-colors"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+                <div className="grid gap-3 md:grid-cols-2">
+                  <div className="space-y-1">
+                    <label className="text-xs font-medium text-ink-soft">Make</label>
+                    <input
+                      type="text" value={newVehicleMake} onChange={(e) => setNewVehicleMake(e.target.value)}
+                      placeholder="e.g. Toyota" className="w-full h-10 px-3 bg-paper-raised border border-line rounded-lg text-ink text-sm focus:outline-none focus:ring-2 focus:ring-ink/20"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-medium text-ink-soft">Model</label>
+                    <input
+                      type="text" value={newVehicleModel} onChange={(e) => setNewVehicleModel(e.target.value)}
+                      placeholder="e.g. Hiace" className="w-full h-10 px-3 bg-paper-raised border border-line rounded-lg text-ink text-sm focus:outline-none focus:ring-2 focus:ring-ink/20"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-medium text-ink-soft">Year</label>
+                    <input
+                      type="number" value={newVehicleYear} onChange={(e) => setNewVehicleYear(e.target.value)}
+                      placeholder="e.g. 2024" className="w-full h-10 px-3 bg-paper-raised border border-line rounded-lg text-ink text-sm focus:outline-none focus:ring-2 focus:ring-ink/20"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-medium text-ink-soft">Plate Number</label>
+                    <input
+                      type="text" value={newVehiclePlate} onChange={(e) => setNewVehiclePlate(e.target.value)}
+                      placeholder="e.g. 8125 RXA" className="w-full h-10 px-3 bg-paper-raised border border-line rounded-lg text-ink text-sm focus:outline-none focus:ring-2 focus:ring-ink/20 uppercase"
+                    />
+                  </div>
+                </div>
+                {vehicleError && (
+                  <p className="text-sm text-red-600 dark:text-red-400">{vehicleError}</p>
+                )}
+                <div className="flex justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => { setShowNewVehicle(false); setVehicleError(null); }}
+                    className="h-9 px-3 text-sm font-medium text-ink-soft hover:text-ink rounded-lg transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleCreateVehicle}
+                    disabled={isCreatingVehicle}
+                    className="h-9 px-4 text-sm font-medium bg-ink text-paper-raised rounded-lg hover:bg-ink-soft transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
+                  >
+                    {isCreatingVehicle ? 'Creating...' : 'Create & Assign'}
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="h-px bg-line" />
