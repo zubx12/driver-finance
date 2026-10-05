@@ -6,6 +6,7 @@ import { useEffect } from 'react';
 import { Home, History, Settings, BarChart2 } from 'lucide-react';
 import { DriverProvider, useDriver } from '@/contexts/DriverContext';
 import { SyncStatusBanner } from '@/components/sync/SyncStatusBanner';
+import { DriverAccountGate } from '@/components/driver/DriverAccountGate';
 import { startSyncEngine } from '@/lib/sync/sync-engine';
 
 /**
@@ -56,7 +57,9 @@ export default function DriverLayout({ children }: { children: React.ReactNode }
       <div className="flex min-h-screen flex-col bg-zinc-50 dark:bg-zinc-950 text-zinc-950 dark:text-zinc-50">
         {/* Full-featured sync status banner (replaces the old offline-only banner) */}
         <div className="print:hidden"><SyncStatusBanner /></div>
-        <main className="flex-1 overflow-y-auto pb-16 pt-0 print:pb-0 print:overflow-visible">{children}</main>
+        <main className="flex-1 overflow-y-auto pb-16 pt-0 print:pb-0 print:overflow-visible">
+          <DriverAccountGate>{children}</DriverAccountGate>
+        </main>
         <DriverNav />
       </div>
     </DriverProvider>

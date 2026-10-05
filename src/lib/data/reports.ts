@@ -148,7 +148,11 @@ export function driverStatementCsv(st: DriverStatement, driverName: string): Csv
     ['Opening balance', s.opening_balance], ['Cash collected', s.cash_collected], ['Vouchers collected', s.vouchers_collected],
     ['Expenses paid', -s.expenses_paid], ['Driver pay', -s.driver_pay], ['Handed over (confirmed)', -s.handovers_confirmed],
     ['Closing balance', s.closing_balance],
-    ...(s.status === 'closed' ? [['Paid at settlement', s.settled_amount ?? 0], ['Carried to next month', s.carried_forward ?? 0]] : []),
+    ...(s.status === 'closed' ? [
+      ['Paid at settlement', s.settled_amount ?? 0],
+      ...(Number(s.written_off ?? 0) > 0 ? [['Written off', s.written_off ?? 0, s.write_off_reason ?? '']] : []),
+      ['Carried to next month', s.carried_forward ?? 0],
+    ] : []),
     [],
     ['Cash rides'], ['Date', 'Vehicle', 'Amount'],
     ...st.cash_rides.map(r => [r.date, r.vehicle, r.amount]),

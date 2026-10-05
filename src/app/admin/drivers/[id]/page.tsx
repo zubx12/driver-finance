@@ -3,6 +3,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams } from 'next/navigation';
 import { AssignmentHistory } from '@/components/admin/AssignmentHistory';
+import { DriverEmployment } from '@/components/admin/DriverEmployment';
+import { DriverClearance } from '@/components/admin/DriverClearance';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import {
@@ -262,9 +264,12 @@ export default function DriverDetailPage() {
               <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
                 driver.status === 'Active'
                   ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400'
-                  : 'bg-zinc-100 text-zinc-600'
+                  : driver.status === 'Leaving'
+                  ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400'
+                  : 'bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400'
               }`}>{driver.status}</span>
             </p>
+            <DriverEmployment driverId={id} status={driver.status} onChanged={() => window.location.reload()} />
           </div>
         </div>
 
@@ -294,6 +299,10 @@ export default function DriverDetailPage() {
         </div>
         </div>
       </header>
+
+      {(driver.status === 'Leaving' || driver.status === 'Left') && (
+        <DriverClearance driverId={id} onChanged={() => window.location.reload()} />
+      )}
 
       {actionError && (
         <div role="alert" className="p-3 bg-red-50 border border-red-200 dark:bg-red-950/20 dark:border-red-800 rounded-xl flex items-center gap-2 text-sm text-red-700 dark:text-red-400">

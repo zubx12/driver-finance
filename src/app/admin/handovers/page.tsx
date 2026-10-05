@@ -78,7 +78,7 @@ export default function AdminHandoversPage() {
   }, [filter, apply]);
 
   useEffect(() => {
-    createClient().from('drivers').select('id, name, vehicle_id').eq('status', 'Active').order('name')
+    createClient().from('drivers').select('id, name, vehicle_id').in('status', ['Active', 'Leaving']).order('name')
       .then(({ data }) => setDrivers((data ?? []) as DriverOption[]));
   }, []);
 

@@ -21,6 +21,8 @@ interface DriverProfile {
 
 interface DriverContextValue extends DriverProfile {
   loading: boolean;
+  /** Signed in, but no driver record is available: account closed (Left) or not linked. */
+  accountClosed: boolean;
   reload: () => void;
 }
 
@@ -42,12 +44,14 @@ const defaultProfile: DriverProfile = {
 const DriverContext = createContext<DriverContextValue>({
   ...defaultProfile,
   loading: true,
+  accountClosed: false,
   reload: () => {},
 });
 
 export function DriverProvider({ children }: { children: ReactNode }) {
   const [profile, setProfile] = useState<DriverProfile>(defaultProfile);
   const [loading, setLoading] = useState(true);
+  const [accountClosed, setAccountClosed] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -63,7 +67,9 @@ export function DriverProvider({ children }: { children: ReactNode }) {
       .eq('linked_auth_id', user.id)
       .single();
 
-    if (!driver) { setLoading(false); return; }
+    // A driver who has left (or an unlinked account) gets no driver record.
+    if (!driver) { setAccountClosed(true); setLoading(false); return; }
+    setAccountClosed(false);
 
     // Get vehicle info if assigned
     let vehicleMake = '', vehicleModel = '', vehiclePlate = '';
@@ -141,7 +147,7 @@ export function DriverProvider({ children }: { children: ReactNode }) {
   useEffect(() => { load(); }, []);
 
   return (
-    <DriverContext.Provider value={{ ...profile, loading, reload: load }}>
+    <DriverContext.Provider value={{ ...profile, loading, accountClosed, reload: load }}>
       {children}
     </DriverContext.Provider>
   );

@@ -42,6 +42,12 @@ export function SettlementBreakdown({ s }: { s: DriverSettlement }) {
             <span>Paid at settlement{s.settle_method ? ` (${s.settle_method === 'bank_transfer' ? 'bank transfer' : 'cash'}${s.settle_reference ? `, ref ${s.settle_reference}` : ''})` : ''}</span>
             <span className="font-mono tabular-nums">{fmt(s.settled_amount ?? 0)}</span>
           </div>
+          {Number(s.written_off ?? 0) > 0 && (
+            <div className="flex justify-between gap-3 py-1 text-zinc-600 dark:text-zinc-400">
+              <span>Written off{s.write_off_reason ? ` (${s.write_off_reason})` : ''}</span>
+              <span className="font-mono tabular-nums">{fmt(s.written_off ?? 0)}</span>
+            </div>
+          )}
           <div className="flex justify-between gap-3 py-1 font-semibold">
             <span>Carried to next month</span>
             <span className="font-mono tabular-nums">{signed(s.carried_forward ?? 0)}</span>
