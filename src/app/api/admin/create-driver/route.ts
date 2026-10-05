@@ -44,7 +44,10 @@ export async function POST(request: NextRequest) {
   }
 
   const cleanUsername = username.trim().toLowerCase().replace(/\s+/g, '_');
-  const email = cleanUsername + '@' + DOMAIN;
+  // If the admin entered an email-like username (e.g. "user@gmail.com"), strip the @domain
+  // portion so the internal auth email doesn't become "user@gmail.com@driverfinance.internal".
+  const localPart = cleanUsername.includes('@') ? cleanUsername.split('@')[0] : cleanUsername;
+  const email = localPart + '@' + DOMAIN;
 
   const adminClient = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,

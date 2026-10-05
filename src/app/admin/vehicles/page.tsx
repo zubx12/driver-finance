@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Drawer, DrawerClose, DrawerContent, DrawerDescription, DrawerFooter, DrawerHeader, DrawerTitle, DrawerTrigger } from '@/components/ui/drawer';
+import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Car, Plus, Settings, UserPlus, Loader2, User } from 'lucide-react';
 import Link from 'next/link';
 
@@ -25,7 +25,7 @@ export default function AdminVehiclesPage() {
   const [loading, setLoading] = useState(true);
   const [assigningVehicle, setAssigningVehicle] = useState<string | null>(null);
   
-  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [dialogOpen, setDialogOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [make, setMake] = useState('');
   const [model, setModel] = useState('');
@@ -83,7 +83,7 @@ export default function AdminVehiclesPage() {
       setModel('');
       setYear('');
       setPlateNumber('');
-      setDrawerOpen(false);
+      setDialogOpen(false);
       loadVehicles();
     } catch (err: any) {
       alert(err.message);
@@ -111,52 +111,52 @@ export default function AdminVehiclesPage() {
               </Button>
             </Link>
             
-            <Drawer open={drawerOpen} onOpenChange={setDrawerOpen}>
-              <DrawerTrigger className="inline-flex items-center justify-center gap-2 whitespace-nowrap text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 disabled:pointer-events-none disabled:opacity-50 bg-indigo-600 text-white shadow hover:bg-indigo-700 h-9 px-4 py-2 rounded-xl">
+            <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+              <DialogTrigger className="inline-flex items-center justify-center gap-2 whitespace-nowrap text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 disabled:pointer-events-none disabled:opacity-50 bg-indigo-600 text-white shadow hover:bg-indigo-700 h-9 px-4 py-2 rounded-xl">
                 <Plus className="h-4 w-4" />
                 Add Vehicle
-              </DrawerTrigger>
-            <DrawerContent className="bg-white dark:bg-zinc-950 border-zinc-200 dark:border-zinc-800">
-              <DrawerHeader>
-                <DrawerTitle>Add New Vehicle</DrawerTitle>
-                <DrawerDescription>Create a new vehicle. You can assign partners and splits later.</DrawerDescription>
-              </DrawerHeader>
-              <div className="p-4 space-y-4 px-6">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">Make</label>
-                    <input type="text" value={make} onChange={(e) => setMake(e.target.value)} className="w-full h-10 px-3 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900" placeholder="e.g. Toyota" />
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Add New Vehicle</DialogTitle>
+                  <DialogDescription>Create a new vehicle. You can assign partners and splits later.</DialogDescription>
+                </DialogHeader>
+                <div className="px-6 pb-2 space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">Make</label>
+                      <input type="text" value={make} onChange={(e) => setMake(e.target.value)} className="w-full h-10 px-3 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-colors" placeholder="e.g. Toyota" />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">Model</label>
+                      <input type="text" value={model} onChange={(e) => setModel(e.target.value)} className="w-full h-10 px-3 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-colors" placeholder="e.g. Camry" />
+                    </div>
                   </div>
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">Model</label>
-                    <input type="text" value={model} onChange={(e) => setModel(e.target.value)} className="w-full h-10 px-3 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900" placeholder="e.g. Camry" />
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">Year</label>
+                      <input type="number" value={year} onChange={(e) => setYear(e.target.value)} className="w-full h-10 px-3 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-colors" placeholder="e.g. 2024" />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">Plate Number</label>
+                      <input type="text" value={plateNumber} onChange={(e) => setPlateNumber(e.target.value)} className="w-full h-10 px-3 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-colors" placeholder="e.g. ABC 1234" />
+                    </div>
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">Year</label>
-                    <input type="number" value={year} onChange={(e) => setYear(e.target.value)} className="w-full h-10 px-3 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900" placeholder="e.g. 2024" />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">Plate Number</label>
-                    <input type="text" value={plateNumber} onChange={(e) => setPlateNumber(e.target.value)} className="w-full h-10 px-3 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900" placeholder="e.g. ABC 1234" />
-                  </div>
-                </div>
-              </div>
-              <DrawerFooter className="flex-row gap-2 px-6 pb-6">
-                <button 
-                  disabled={isSaving}
-                  onClick={handleSubmit}
-                  className="flex-1 inline-flex items-center justify-center whitespace-nowrap text-sm font-medium transition-colors bg-indigo-600 text-white shadow hover:bg-indigo-700 h-10 px-4 py-2 rounded-xl disabled:opacity-50"
-                >
-                  {isSaving ? 'Saving...' : 'Save Vehicle'}
-                </button>
-                <DrawerClose className="flex-1 inline-flex items-center justify-center whitespace-nowrap text-sm font-medium transition-colors border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 shadow-sm hover:bg-zinc-100 dark:hover:bg-zinc-800 h-10 px-4 py-2 rounded-xl">
-                  Cancel
-                </DrawerClose>
-              </DrawerFooter>
-            </DrawerContent>
-          </Drawer>
+                <DialogFooter className="border-t border-zinc-100 dark:border-zinc-800">
+                  <DialogClose className="inline-flex items-center justify-center whitespace-nowrap text-sm font-medium transition-colors border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 shadow-sm hover:bg-zinc-100 dark:hover:bg-zinc-800 h-10 px-5 rounded-xl">
+                    Cancel
+                  </DialogClose>
+                  <button
+                    disabled={isSaving}
+                    onClick={handleSubmit}
+                    className="inline-flex items-center justify-center whitespace-nowrap text-sm font-medium transition-colors bg-indigo-600 text-white shadow hover:bg-indigo-700 h-10 px-5 rounded-xl disabled:opacity-50"
+                  >
+                    {isSaving ? 'Saving...' : 'Save Vehicle'}
+                  </button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
           </div>
         </header>
 
