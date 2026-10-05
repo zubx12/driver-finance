@@ -132,6 +132,11 @@ Status (2026-10-05): 7A, 7B done (PR #1); 7C, 7D done (PR #2); 7E done (PR #3);
 (vehicle report or driver statement per month, Print / Save as PDF, CSV) and
 "My Statement" for drivers, opened from the settlement card on the Cash screen.
 The vehicle report is for the office only; partners keep their own screens.
+7G done on branch feat/money-flow-7g: Month-End Close in the admin menu. Steps
+in order (0 review handovers and driver/company expenses, 1 finalize payouts,
+2 settle drivers, 3 pay partners), each linking to its screen; the office
+signs the month off when nothing is open, and can reopen it with a reason.
+Vouchers owed to partners are shown as information (they can be from any month).
 
 Rules settled while building 7E:
 - Vouchers are handed over **when the office pays the partner's share**: those
