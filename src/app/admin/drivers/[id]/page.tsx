@@ -6,8 +6,10 @@ import { AssignmentHistory } from '@/components/admin/AssignmentHistory';
 import { DriverEmployment } from '@/components/admin/DriverEmployment';
 import { DriverClearance } from '@/components/admin/DriverClearance';
 import { DriverOverview } from '@/components/admin/DriverOverview';
+import { DriverCashVouchers } from '@/components/admin/DriverCashVouchers';
+import { DriverSettlementsPay } from '@/components/admin/DriverSettlementsPay';
 
-const WORKSPACE_TABS = ['overview', 'rides', 'expenses', 'history'] as const;
+const WORKSPACE_TABS = ['overview', 'rides', 'expenses', 'cash', 'pay', 'history'] as const;
 type WorkspaceTab = (typeof WORKSPACE_TABS)[number];
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -458,6 +460,8 @@ export default function DriverDetailPage() {
           ['overview', 'Overview'],
           ['rides', `Rides (${rides.length})`],
           ['expenses', `Expenses (${expenses.length})`],
+          ['cash', 'Cash & vouchers'],
+          ['pay', 'Settlements & pay'],
           ['history', 'History'],
         ] as [WorkspaceTab, string][]).map(([key, label]) => (
           <button key={key} onClick={() => changeTab(key)} aria-current={tab === key ? 'page' : undefined}
@@ -629,6 +633,12 @@ export default function DriverDetailPage() {
         </Card>
   
       )}
+
+      {tab === 'cash' && (
+        <DriverCashVouchers driverId={id} month={selectedMonth.value} monthStart={selectedMonth.start} monthEnd={selectedMonth.end} />
+      )}
+
+      {tab === 'pay' && <DriverSettlementsPay driverId={id} />}
 
       {tab === 'history' && <AssignmentHistory driverId={id} />}
     </div>
