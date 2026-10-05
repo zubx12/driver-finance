@@ -5,52 +5,16 @@ import { useSearchParams } from 'next/navigation';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { ShieldCheck, AlertCircle, ArrowRight, ChevronLeft, ChevronRight } from 'lucide-react';
+import { ShieldCheck, AlertCircle, ChevronLeft, ChevronRight } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
+import { AUDIT_TABLES, AuditEntry, type AuditRow } from '@/components/admin/AuditEntry';
 
 // Every insert, change and deletion of money and access data is recorded by a
 // database trigger and cannot be edited or deleted (migrations 20260930000001
 // and 20261004000002). get_audit_log adds names and a "from -> to" view.
 
-interface AuditRow {
-  id: string;
-  changed_at: string;
-  table_name: string;
-  record_id: string;
-  action: 'INSERT' | 'UPDATE' | 'DELETE';
-  actor: string;
-  changes: Record<string, { from: unknown; to: unknown }> | null;
-  snapshot: Record<string, unknown> | null;
-  total_count: number;
-}
-
 const PAGE_SIZE = 50;
-const TABLES: { value: string; label: string }[] = [
-  { value: '', label: 'Everything' },
-  { value: 'rides', label: 'Rides' },
-  { value: 'expenses', label: 'Expenses' },
-  { value: 'salary_calculations', label: 'Salary runs' },
-  { value: 'salary_adjustments', label: 'Adjustments' },
-  { value: 'settlements', label: 'Settlements' },
-  { value: 'vehicle_partners', label: 'Ownership splits' },
-  { value: 'driver_compensation', label: 'Driver pay terms' },
-  { value: 'correction_requests', label: 'Correction requests' },
-  { value: 'drivers', label: 'Drivers' },
-  { value: 'partners', label: 'Partners' },
-  { value: 'vehicles', label: 'Vehicles' },
-  { value: 'payers', label: 'Payers' },
-];
-const ACTION_LABEL = { INSERT: 'Created', UPDATE: 'Changed', DELETE: 'Deleted' } as const;
-const ACTION_STYLE = {
-  INSERT: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300',
-  UPDATE: 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/40 dark:text-indigo-300',
-  DELETE: 'bg-rose-100 text-rose-800 dark:bg-rose-900/40 dark:text-rose-300',
-} as const;
-// Fields that explain a created/deleted row at a glance.
-const SUMMARY_FIELDS = ['amount', 'ride_date', 'expense_date', 'category', 'status', 'payment_status', 'percentage', 'name', 'period_start', 'reason'];
-
-const show = (v: unknown) => (v === null || v === undefined || v === '' ? '—' : typeof v === 'object' ? JSON.stringify(v) : String(v));
-const label = (field: string) => field.replace(/_/g, ' ');
+const TABLES = [{ value: '', label: 'Everything' }, ...AUDIT_TABLES];
 
 interface Filters { table: string; record: string; from: string; to: string; page: number; }
 
@@ -153,49 +117,9 @@ function AuditLog() {
         <>
           <div className="text-sm text-zinc-500">{total} change{total === 1 ? '' : 's'}</div>
           <div className="space-y-2">
-            {rows.map(row => {
-              const when = new Date(row.changed_at);
-              const tableLabel = TABLES.find(t => t.value === row.table_name)?.label ?? row.table_name;
-              const fields = row.action === 'UPDATE'
-                ? Object.entries(row.changes ?? {})
-                : SUMMARY_FIELDS.filter(f => row.snapshot && f in row.snapshot).map(f => [f, row.snapshot![f]] as const);
-              return (
-                <Card key={row.id} className="border-zinc-200 dark:border-zinc-800 rounded-xl">
-                  <CardContent className="p-4 space-y-2">
-                    <div className="flex flex-wrap items-center gap-2 text-sm">
-                      <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded ${ACTION_STYLE[row.action]}`}>{ACTION_LABEL[row.action]}</span>
-                      <span className="font-semibold">{tableLabel}</span>
-                      <button className="font-mono text-xs text-indigo-600 hover:underline" title="Show this record's full history"
-                        onClick={() => update({ record: row.record_id, table: '' })}>
-                        {row.record_id.slice(0, 8)}
-                      </button>
-                      <span className="text-zinc-500">by <span className="text-zinc-800 dark:text-zinc-200">{row.actor}</span></span>
-                      <span className="ml-auto text-xs text-zinc-400">
-                        {when.toLocaleDateString('en-SA')} {when.toLocaleTimeString('en-SA', { hour: '2-digit', minute: '2-digit' })}
-                      </span>
-                    </div>
-                    {fields.length > 0 && (
-                      <dl className="grid gap-1 text-xs sm:grid-cols-2">
-                        {fields.map(([field, value]) => (
-                          <div key={field} className="flex items-center gap-2 min-w-0">
-                            <dt className="text-zinc-500 shrink-0">{label(field)}:</dt>
-                            {row.action === 'UPDATE' ? (
-                              <dd className="flex items-center gap-1 min-w-0">
-                                <span className="text-rose-600 dark:text-rose-400 line-through truncate">{show((value as { from: unknown }).from)}</span>
-                                <ArrowRight className="h-3 w-3 text-zinc-400 shrink-0" />
-                                <span className="text-emerald-700 dark:text-emerald-400 font-medium truncate">{show((value as { to: unknown }).to)}</span>
-                              </dd>
-                            ) : (
-                              <dd className="truncate">{show(value)}</dd>
-                            )}
-                          </div>
-                        ))}
-                      </dl>
-                    )}
-                  </CardContent>
-                </Card>
-              );
-            })}
+            {rows.map(row => (
+              <AuditEntry key={row.id} row={row} onRecordClick={record => update({ record, table: '' })} />
+            ))}
           </div>
           <div className="flex items-center justify-between">
             <Button variant="outline" size="sm" disabled={filters.page === 0}

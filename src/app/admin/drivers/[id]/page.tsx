@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useParams } from 'next/navigation';
-import { AssignmentHistory } from '@/components/admin/AssignmentHistory';
+import { DriverHistory } from '@/components/admin/DriverHistory';
 import { DriverEmployment } from '@/components/admin/DriverEmployment';
 import { DriverClearance } from '@/components/admin/DriverClearance';
 import { DriverOverview } from '@/components/admin/DriverOverview';
@@ -648,7 +648,7 @@ export default function DriverDetailPage() {
           vehicle={vehicle} rides={rides} expenses={expenses} />
       )}
 
-      {tab === 'history' && <AssignmentHistory driverId={id} />}
+      {tab === 'history' && <DriverHistory driverId={id} />}
     </div>
   );
 }
