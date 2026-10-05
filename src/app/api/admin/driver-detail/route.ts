@@ -3,6 +3,7 @@ import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import { NextRequest, NextResponse } from 'next/server';
 import { getAppRole } from '@/lib/auth/roles';
+import { monthOf, riyadhToday } from '@/lib/dates';
 
 export async function GET(request: NextRequest) {
   const id = request.nextUrl.searchParams.get('id');
@@ -38,10 +39,15 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ message: 'Driver not found' }, { status: 404 });
   }
 
-  // 4. Fetch vehicle if assigned
+  // 4. The month (YYYY-MM), in Riyadh time by default
+  const { start: startDate, end: endDate } = month && /^\d{4}-\d{2}$/.test(month)
+    ? monthOf(`${month}-01`)
+    : monthOf(riyadhToday());
+
+  // 5. Vehicle, with the owners and this driver's pay terms for that month
   let vehicle = null;
-  let vehiclePartners: any[] = [];
-  let driverCompensation: any = null;
+  let vehiclePartners: unknown[] = [];
+  let driverCompensation: unknown = null;
   if (driver.vehicle_id) {
     const { data: vData } = await admin
       .from('vehicles')
@@ -51,50 +57,40 @@ export async function GET(request: NextRequest) {
     vehicle = vData;
 
     // Fetch partner equity split for the vehicle
+    // Owners during the month (not only today's), with their dates.
     const { data: vpData } = await admin
       .from('vehicle_partners')
-      .select('id, percentage, partners(name)')
+      .select('id, percentage, effective_from, effective_to, partners(name)')
       .eq('vehicle_id', driver.vehicle_id)
-      .is('effective_to', null);
+      .lte('effective_from', endDate)
+      .or(`effective_to.is.null,effective_to.gt.${startDate}`)
+      .order('effective_from');
     vehiclePartners = vpData ?? [];
 
-    // Fetch driver compensation
+    // THIS driver's pay terms on the vehicle during the month (latest first).
     const { data: compData } = await admin
       .from('driver_compensation')
-      .select('compensation_type, commission_percentage, fixed_salary_amount, bonus_rate')
+      .select('compensation_type, commission_percentage, fixed_salary_amount, bonus_rate, effective_from, effective_to')
+      .eq('driver_id', id)
       .eq('vehicle_id', driver.vehicle_id)
-      .is('effective_to', null)
-      .maybeSingle();
-    driverCompensation = compData;
+      .lte('effective_from', endDate)
+      .or(`effective_to.is.null,effective_to.gt.${startDate}`)
+      .order('effective_from', { ascending: false })
+      .limit(1);
+    driverCompensation = compData?.[0] ?? null;
   }
 
-  // 5. Fetch rides and expenses for the requested month
-  let startDate: string;
-  let endDate: string;
-
-  if (month) {
-    const [year, mon] = month.split('-').map(Number);
-    startDate = `${year}-${String(mon).padStart(2, '0')}-01`;
-    const lastDay = new Date(year, mon, 0).getDate();
-    endDate = `${year}-${String(mon).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
-  } else {
-    const now = new Date();
-    const year = now.getFullYear();
-    const mon = now.getMonth() + 1;
-    startDate = `${year}-${String(mon).padStart(2, '0')}-01`;
-    const lastDay = new Date(year, mon, 0).getDate();
-    endDate = `${year}-${String(mon).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
-  }
+  // 6. Rides and expenses for the month
 
   const [ridesRes, expensesRes] = await Promise.all([
     admin.from('rides')
-      .select('id, ride_date, amount, payment_method, payment_status, payer_id, reference, notes, payers(name)')
+      .select('id, ride_date, amount, payment_method, payment_status, payer_id, reference, notes, payers(name), vehicles(plate_number)')
       .eq('driver_id', id)
       .gte('ride_date', startDate)
       .lte('ride_date', endDate)
       .order('ride_date', { ascending: false }),
     admin.from('expenses')
-      .select('id, expense_date, amount, category, description, receipt_image_url')
+      .select('id, expense_date, amount, category, description, receipt_image_url, paid_by, payment_method, allocation, review_status, vehicles!expenses_vehicle_id_fkey(plate_number)')
       .eq('driver_id', id)
       .gte('expense_date', startDate)
       .lte('expense_date', endDate)

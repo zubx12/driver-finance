@@ -4,6 +4,14 @@ import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 
 interface ChartPoint { date: string; revenue: number; expenses: number; }
 
+/** 500 -> "500", 2,500 -> "2.5k", 48,000 -> "48k" (no "0k" for small amounts). */
+export function axisAmount(v: number): string {
+  const a = Math.abs(v);
+  if (a < 1000) return String(Math.round(v));
+  const k = v / 1000;
+  return `${Number.isInteger(k) || a >= 10000 ? Math.round(k) : k.toFixed(1)}k`;
+}
+
 export default function RevenueChart({ data }: { data: ChartPoint[] }) {
   return (
     <ResponsiveContainer width="100%" height={220}>
@@ -20,10 +28,10 @@ export default function RevenueChart({ data }: { data: ChartPoint[] }) {
         </defs>
         <CartesianGrid strokeDasharray="3 3" className="stroke-zinc-200 dark:stroke-zinc-800" />
         <XAxis dataKey="date" tick={{ fontSize: 11 }} className="text-zinc-500" />
-        <YAxis tick={{ fontSize: 11 }} className="text-zinc-500" tickFormatter={(v) => `${(v/1000).toFixed(0)}k`} />
-        <Tooltip formatter={(value: any) => `SAR ${Number(value).toLocaleString('en-SA')}`} />
+        <YAxis tick={{ fontSize: 11 }} className="text-zinc-500" width={48} tickFormatter={axisAmount} />
+        <Tooltip formatter={(value) => `SAR ${Number(value).toLocaleString('en-SA', { maximumFractionDigits: 2 })}`} />
         <Area type="monotone" dataKey="revenue" stroke="#6366f1" strokeWidth={2} fill="url(#colorRevenue)" name="Revenue" />
-        <Area type="monotone" dataKey="expenses" stroke="#f43f5e" strokeWidth={2} fill="url(#colorExpenses)" name="Expenses" />
+        <Area type="monotone" dataKey="expenses" stroke="#f43f5e" strokeWidth={2} fill="url(#colorExpenses)" name="Vehicle expenses" />
       </AreaChart>
     </ResponsiveContainer>
   );

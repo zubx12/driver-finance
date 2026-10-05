@@ -22,6 +22,39 @@ export interface RecentActivity {
   amount: number;
   createdAt: string;
   type: 'ride' | 'expense';
+  /** Ride details, so the feed says what was logged, not only an amount. */
+  vehicle?: string | null;
+  paymentMethod?: string | null;
+  entryDate?: string | null;
+}
+
+/** Columns for the latest-rides feed (dashboard and live updates). */
+export const RECENT_RIDE_SELECT = 'id, amount, ride_date, payment_method, created_at, drivers(name), vehicles(plate_number)';
+
+interface RecentRideRow {
+  id: string;
+  amount: number;
+  ride_date: string;
+  payment_method: string;
+  created_at: string;
+  drivers: { name: string } | { name: string }[] | null;
+  vehicles: { plate_number: string } | { plate_number: string }[] | null;
+}
+
+const one = <T,>(x: T | T[] | null): T | null => (Array.isArray(x) ? x[0] ?? null : x);
+
+export function mapRecentRide(r: unknown): RecentActivity {
+  const row = r as RecentRideRow;
+  return {
+    id: row.id,
+    driverName: one(row.drivers)?.name ?? 'Unknown Driver',
+    amount: Number(row.amount),
+    createdAt: row.created_at,
+    type: 'ride',
+    vehicle: one(row.vehicles)?.plate_number ?? null,
+    paymentMethod: row.payment_method,
+    entryDate: row.ride_date,
+  };
 }
 
 export interface AdminRealtimeState {
@@ -47,21 +80,11 @@ export function useRealtimeAdmin(): AdminRealtimeState & { dismiss: () => void }
       // Recent rides (last 5)
       const { data: rides } = await supabase
         .from('rides')
-        .select('id, amount, created_at, drivers(name)')
+        .select(RECENT_RIDE_SELECT)
         .order('created_at', { ascending: false })
         .limit(5);
 
-      if (rides) {
-        setRecentActivity(
-          rides.map((r: any) => ({
-            id: r.id,
-            driverName: r.drivers?.name ?? 'Unknown Driver',
-            amount: r.amount,
-            createdAt: r.created_at,
-            type: 'ride' as const,
-          }))
-        );
-      }
+      if (rides) setRecentActivity(rides.map(mapRecentRide));
 
       // Pending correction requests count
       const { count } = await supabase
@@ -92,23 +115,12 @@ export function useRealtimeAdmin(): AdminRealtimeState & { dismiss: () => void }
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'rides' },
         async (payload) => {
-          const newRide = payload.new as any;
-          // Fetch driver name for this ride
-          const { data: driver } = await supabase
-            .from('drivers')
-            .select('name')
-            .eq('id', newRide.driver_id)
-            .single();
-
-          const activity: RecentActivity = {
-            id: newRide.id,
-            driverName: driver?.name ?? 'Unknown Driver',
-            amount: newRide.amount,
-            createdAt: newRide.created_at,
-            type: 'ride',
-          };
-
-          setRecentActivity((prev) => [activity, ...prev].slice(0, 5));
+          const newRide = payload.new as { id: string };
+          // Read the ride back with its driver and vehicle.
+          const { data } = await supabase.from('rides').select(RECENT_RIDE_SELECT).eq('id', newRide.id).maybeSingle();
+          if (!data) return;
+          const activity = mapRecentRide(data);
+          setRecentActivity((prev) => [activity, ...prev.filter(a => a.id !== activity.id)].slice(0, 5));
         }
       )
 
