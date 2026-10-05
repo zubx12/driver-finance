@@ -8,6 +8,8 @@ import { Wallet, CheckCircle2, Search, Clock, FileText, X, ChevronLeft, ChevronR
 import { createClient } from '@/lib/supabase/client';
 import { Drawer, DrawerClose, DrawerContent, DrawerDescription, DrawerFooter, DrawerHeader, DrawerTitle } from '@/components/ui/drawer';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { payPartnerSettlement, previewPartnerSettlement, type SettlementPreview } from '@/lib/data/partnerVouchers';
+import { PartnerVoucherList } from '@/components/PartnerVoucherList';
 
 interface Settlement {
   id: string;
@@ -23,6 +25,10 @@ interface Settlement {
   vehicle_name: string;
   plate_number: string;
   ownership_percentage: number;
+  cash_amount: number | null;
+  voucher_amount: number | null;
+  payment_method: 'cash' | 'bank_transfer' | null;
+  vouchers_kept_by_office: boolean;
 }
 
 const PAGE_SIZE = 50;
@@ -34,13 +40,17 @@ export default function AdminSettlementsPage() {
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [page, setPage] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
-  
+
   // Payment drawer state
   const [payDrawerOpen, setPayDrawerOpen] = useState(false);
   const [selectedSettlement, setSelectedSettlement] = useState<Settlement | null>(null);
   const [payRef, setPayRef] = useState('');
   const [payNotes, setPayNotes] = useState('');
   const [isPaying, setIsPaying] = useState(false);
+  const [payMethod, setPayMethod] = useState<'cash' | 'bank_transfer'>('bank_transfer');
+  // Uncollected vouchers handed to the partner as part of the share (7E).
+  const [preview, setPreview] = useState<SettlementPreview | null>(null);
+  const [previewError, setPreviewError] = useState<string | null>(null);
 
   // Debounce search
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -81,7 +91,13 @@ export default function AdminSettlementsPage() {
     setSelectedSettlement(s);
     setPayRef('');
     setPayNotes('');
+    setPayMethod('bank_transfer');
+    setPreview(null);
+    setPreviewError(null);
     setPayDrawerOpen(true);
+    previewPartnerSettlement(s.id)
+      .then(setPreview)
+      .catch(e => setPreviewError((e as Error).message));
   };
 
   const submitPayment = async () => {
@@ -91,39 +107,42 @@ export default function AdminSettlementsPage() {
       return;
     }
 
+    if (!preview) return;
+
     setIsPaying(true);
     try {
-      const res = await fetch('/api/admin/pay-settlement', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          settlementId: selectedSettlement.id,
-          paymentReference: payRef,
-          notes: payNotes
-        })
+      const keepVouchers = preview.vouchers_exceed_share;
+      const split = await payPartnerSettlement({
+        settlementId: selectedSettlement.id,
+        method: payMethod,
+        reference: payRef,
+        notes: payNotes,
+        keepVouchers,
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
 
       // Update local state
-      setSettlements(prev => prev.map(s => s.id === selectedSettlement.id ? { 
-        ...s, 
-        status: 'paid', 
-        paid_at: new Date().toISOString(), 
-        payment_reference: payRef, 
-        notes: payNotes 
+      setSettlements(prev => prev.map(s => s.id === selectedSettlement.id ? {
+        ...s,
+        status: 'paid',
+        paid_at: new Date().toISOString(),
+        payment_reference: payRef,
+        notes: payNotes,
+        payment_method: payMethod,
+        cash_amount: split.cash_amount,
+        voucher_amount: split.voucher_amount,
+        vouchers_kept_by_office: keepVouchers,
       } : s));
-      
+
       setPayDrawerOpen(false);
-    } catch (err: any) {
-      alert(err.message);
+    } catch (err) {
+      alert((err as Error).message);
     } finally {
       setIsPaying(false);
     }
   };
 
   const fmt = (n: number) => n.toLocaleString('en-SA', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  
+
   // Search is now server-side — no client-side filtering needed
   const pending = settlements.filter(s => s.status === 'pending');
   const paid = settlements.filter(s => s.status === 'paid');
@@ -137,7 +156,7 @@ export default function AdminSettlementsPage() {
             <div className="text-xs font-medium text-zinc-500 uppercase tracking-wider mb-1">{s.period_start} to {s.period_end}</div>
             <CardTitle className="text-base">{s.partner_name || 'Unknown Partner'}</CardTitle>
             <CardDescription className="text-xs flex items-center gap-1 mt-0.5">
-              <span className="font-medium text-zinc-700 dark:text-zinc-300">{s.vehicle_name}</span> 
+              <span className="font-medium text-zinc-700 dark:text-zinc-300">{s.vehicle_name}</span>
               <span className="text-zinc-400">({s.plate_number})</span>
             </CardDescription>
           </div>
@@ -149,17 +168,24 @@ export default function AdminSettlementsPage() {
           </div>
         </div>
       </CardHeader>
-      
+
       <CardContent className="p-4 flex-1 flex flex-col justify-end">
         {!isPending && s.payment_reference && (
           <div className="bg-zinc-50 dark:bg-zinc-900/50 p-3 rounded-lg mb-3">
             <div className="text-xs font-semibold uppercase tracking-wider text-zinc-500 mb-1">Payment Reference</div>
             <div className="font-mono text-sm break-all">{s.payment_reference}</div>
+            {s.cash_amount != null && (
+              <div className="text-xs text-zinc-600 dark:text-zinc-400 mt-1">
+                Cash SAR {fmt(Number(s.cash_amount))}{s.payment_method === 'bank_transfer' ? ' (bank transfer)' : ''}
+                {Number(s.voucher_amount) > 0 && <> · Vouchers SAR {fmt(Number(s.voucher_amount))}</>}
+                {s.vouchers_kept_by_office && <> · vouchers kept by the office</>}
+              </div>
+            )}
             {s.paid_at && <div className="text-xs text-zinc-500 mt-1">Paid on: {new Date(s.paid_at).toLocaleDateString()}</div>}
             {s.notes && <div className="text-xs text-zinc-600 dark:text-zinc-400 mt-2 italic">"{s.notes}"</div>}
           </div>
         )}
-        
+
         {isPending ? (
           <Button onClick={() => handlePayClick(s)} className="w-full mt-2 bg-zinc-900 hover:bg-zinc-800 text-white shadow-sm">
             <Wallet className="h-4 w-4 mr-2" /> Mark as Paid
@@ -184,8 +210,8 @@ export default function AdminSettlementsPage() {
 
       <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-400" />
-        <Input 
-          placeholder="Search partners, vehicles, or payment refs..." 
+        <Input
+          placeholder="Search partners, vehicles, or payment refs..."
           className="pl-9 bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 rounded-xl shadow-sm"
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
@@ -193,15 +219,18 @@ export default function AdminSettlementsPage() {
       </div>
 
       <Tabs defaultValue="pending" className="w-full">
-        <TabsList className="grid w-full grid-cols-2 mb-6 h-12 items-center rounded-xl p-1 bg-zinc-100/50 dark:bg-zinc-900/50 border border-zinc-100 dark:border-zinc-800">
+        <TabsList className="grid w-full grid-cols-3 mb-6 h-12 items-center rounded-xl p-1 bg-zinc-100/50 dark:bg-zinc-900/50 border border-zinc-100 dark:border-zinc-800">
           <TabsTrigger value="pending" className="rounded-lg h-9 data-[state=active]:shadow-sm data-[state=active]:bg-white dark:data-[state=active]:bg-zinc-800">
             Pending ({pending.length})
           </TabsTrigger>
           <TabsTrigger value="paid" className="rounded-lg h-9 data-[state=active]:shadow-sm data-[state=active]:bg-white dark:data-[state=active]:bg-zinc-800">
             Paid History ({paid.length})
           </TabsTrigger>
+          <TabsTrigger value="vouchers" className="rounded-lg h-9 data-[state=active]:shadow-sm data-[state=active]:bg-white dark:data-[state=active]:bg-zinc-800">
+            Vouchers
+          </TabsTrigger>
         </TabsList>
-        
+
         <TabsContent value="pending" className="mt-0">
           {loading ? (
             <div className="text-center py-12 text-zinc-500">Loading settlements...</div>
@@ -217,7 +246,7 @@ export default function AdminSettlementsPage() {
             </div>
           )}
         </TabsContent>
-        
+
         <TabsContent value="paid" className="mt-0">
           {loading ? (
             <div className="text-center py-12 text-zinc-500">Loading history...</div>
@@ -228,6 +257,10 @@ export default function AdminSettlementsPage() {
               {paid.map(s => renderCard(s, false))}
             </div>
           )}
+        </TabsContent>
+
+        <TabsContent value="vouchers" className="mt-0">
+          <PartnerVoucherList mode="office" />
         </TabsContent>
       </Tabs>
 
@@ -258,7 +291,7 @@ export default function AdminSettlementsPage() {
                 Mark this settlement as paid for {selectedSettlement?.partner_name}.
               </DrawerDescription>
             </DrawerHeader>
-            
+
             {selectedSettlement && (
               <div className="space-y-6">
                 <div className="bg-zinc-50 dark:bg-zinc-900/50 p-4 rounded-xl border border-zinc-100 dark:border-zinc-800">
@@ -272,20 +305,54 @@ export default function AdminSettlementsPage() {
                   </div>
                 </div>
 
+                {previewError ? (
+                  <div className="text-sm text-red-600">{previewError}</div>
+                ) : !preview ? (
+                  <div className="text-sm text-zinc-500">Checking uncollected vouchers…</div>
+                ) : preview.vouchers_exceed_share ? (
+                  <div className="text-xs text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/20 rounded-xl p-3">
+                    The partner&apos;s part of the uncollected vouchers (SAR {fmt(preview.voucher_amount)}) is more than the share,
+                    so the office keeps the vouchers and pays the full SAR {fmt(preview.amount)} in cash.
+                  </div>
+                ) : (
+                  <div className="rounded-xl border border-zinc-100 dark:border-zinc-800 p-3 space-y-1 text-sm">
+                    <div className="flex justify-between"><span className="text-zinc-500">Pay in cash / transfer</span><span className="font-bold">SAR {fmt(preview.cash_amount)}</span></div>
+                    <div className="flex justify-between"><span className="text-zinc-500">Vouchers handed to the partner</span><span className="font-bold">SAR {fmt(preview.voucher_amount)}</span></div>
+                    {preview.vouchers.length > 0 && (
+                      <ul className="pt-2 mt-1 border-t border-zinc-100 dark:border-zinc-800 text-xs text-zinc-600 dark:text-zinc-400 space-y-0.5 max-h-40 overflow-y-auto">
+                        {preview.vouchers.map(v => (
+                          <li key={v.ride_id} className="flex justify-between gap-2">
+                            <span>{v.ride_date} · {v.payer ?? 'Voucher'}{v.reference ? ` · ${v.reference}` : ''} · {fmt(v.ride_amount)} × {v.percentage}%</span>
+                            <span className="font-mono">{fmt(v.amount)}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                )}
+
                 <div className="space-y-4">
                   <div className="space-y-2">
+                    <label className="text-sm font-semibold">Paid by</label>
+                    <select value={payMethod} onChange={e => setPayMethod(e.target.value as 'cash' | 'bank_transfer')}
+                      className="h-9 w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-transparent px-2 text-sm">
+                      <option value="bank_transfer">Bank transfer</option>
+                      <option value="cash">Cash</option>
+                    </select>
+                  </div>
+                  <div className="space-y-2">
                     <label className="text-sm font-semibold">Payment Reference <span className="text-rose-500">*</span></label>
-                    <Input 
-                      placeholder="e.g., Bank Transfer ID, Check Number" 
-                      value={payRef} 
+                    <Input
+                      placeholder="e.g., Bank Transfer ID, Check Number"
+                      value={payRef}
                       onChange={e => setPayRef(e.target.value)}
                     />
                   </div>
                   <div className="space-y-2">
                     <label className="text-sm font-semibold">Notes <span className="text-zinc-400 font-normal">(Optional)</span></label>
-                    <Input 
-                      placeholder="Any internal notes about this payment..." 
-                      value={payNotes} 
+                    <Input
+                      placeholder="Any internal notes about this payment..."
+                      value={payNotes}
                       onChange={e => setPayNotes(e.target.value)}
                     />
                   </div>
@@ -295,7 +362,7 @@ export default function AdminSettlementsPage() {
                   <DrawerClose className="flex-1">
                     <Button variant="outline" className="w-full rounded-xl">Cancel</Button>
                   </DrawerClose>
-                  <Button onClick={submitPayment} disabled={isPaying || !payRef.trim()} className="flex-1 rounded-xl bg-zinc-900 text-white">
+                  <Button onClick={submitPayment} disabled={isPaying || !payRef.trim() || !preview} className="flex-1 rounded-xl bg-zinc-900 text-white">
                     {isPaying ? 'Saving...' : 'Confirm Paid'}
                   </Button>
                 </div>

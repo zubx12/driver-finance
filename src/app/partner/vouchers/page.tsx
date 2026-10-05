@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { usePartner } from '@/contexts/PartnerContext';
 import { FileText, AlertCircle } from 'lucide-react';
+import { PartnerVoucherList } from '@/components/PartnerVoucherList';
 
 interface PayerSummary {
   payerId: string;
@@ -122,6 +123,15 @@ export default function PartnerVouchersPage() {
           ))}
         </div>
       )}
+
+      {/* Vouchers handed to this partner as part of their share (7E) */}
+      <section className="space-y-3">
+        <div>
+          <h2 className="text-lg font-bold tracking-tight">Vouchers Handed to You</h2>
+          <p className="text-sm text-zinc-500">Part of your share was paid in these vouchers. Mark each one when you collect it.</p>
+        </div>
+        <PartnerVoucherList mode="partner" />
+      </section>
     </div>
   );
 }
