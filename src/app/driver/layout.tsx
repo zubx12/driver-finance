@@ -39,7 +39,7 @@ function DriverNav() {
     }`;
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 flex h-16 items-center justify-around border-t bg-white dark:bg-zinc-950 dark:border-zinc-800 pb-safe">
+    <nav className="fixed bottom-0 left-0 right-0 z-50 print:!hidden flex h-16 items-center justify-around border-t bg-white dark:bg-zinc-950 dark:border-zinc-800 pb-safe">
       <Link href="/driver" className={cls('/driver')}><Home className="mb-1 h-5 w-5" />My Day</Link>
       <Link href="/driver/history" className={cls('/history')}><History className="mb-1 h-5 w-5" />History</Link>
       <Link href="/driver/summary" className={cls('/summary')}><BarChart2 className="mb-1 h-5 w-5" />Summary</Link>
@@ -55,8 +55,8 @@ export default function DriverLayout({ children }: { children: React.ReactNode }
       <SyncEngineStarter />
       <div className="flex min-h-screen flex-col bg-zinc-50 dark:bg-zinc-950 text-zinc-950 dark:text-zinc-50">
         {/* Full-featured sync status banner (replaces the old offline-only banner) */}
-        <SyncStatusBanner />
-        <main className="flex-1 overflow-y-auto pb-16 pt-0">{children}</main>
+        <div className="print:hidden"><SyncStatusBanner /></div>
+        <main className="flex-1 overflow-y-auto pb-16 pt-0 print:pb-0 print:overflow-visible">{children}</main>
         <DriverNav />
       </div>
     </DriverProvider>

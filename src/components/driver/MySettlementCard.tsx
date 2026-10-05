@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { Card, CardContent } from '@/components/ui/card';
 import { Lock } from 'lucide-react';
 import { useDriver } from '@/contexts/DriverContext';
@@ -66,6 +67,9 @@ export function MySettlementCard() {
               {s.status === 'open' && s.pay_lines.some(p => p.status !== 'finalized') && (
                 <p className="text-[11px] text-zinc-400 text-center">Your pay is added once the office finalizes the month.</p>
               )}
+              <Link href="/driver/statement" className="block text-center text-xs font-semibold text-indigo-600 dark:text-indigo-400 pt-1">
+                See every ride, expense and handover →
+              </Link>
             </>
           )}
         </CardContent>
