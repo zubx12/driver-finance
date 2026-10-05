@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams } from 'next/navigation';
 import { AssignmentHistory } from '@/components/admin/AssignmentHistory';
+import { DriverEmployment } from '@/components/admin/DriverEmployment';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import {
@@ -265,6 +266,7 @@ export default function DriverDetailPage() {
                   : 'bg-zinc-100 text-zinc-600'
               }`}>{driver.status}</span>
             </p>
+            <DriverEmployment driverId={id} />
           </div>
         </div>
 
