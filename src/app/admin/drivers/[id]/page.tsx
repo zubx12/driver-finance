@@ -263,10 +263,12 @@ export default function DriverDetailPage() {
               <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
                 driver.status === 'Active'
                   ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400'
-                  : 'bg-zinc-100 text-zinc-600'
+                  : driver.status === 'Leaving'
+                  ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400'
+                  : 'bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400'
               }`}>{driver.status}</span>
             </p>
-            <DriverEmployment driverId={id} />
+            <DriverEmployment driverId={id} status={driver.status} onChanged={() => window.location.reload()} />
           </div>
         </div>
 
